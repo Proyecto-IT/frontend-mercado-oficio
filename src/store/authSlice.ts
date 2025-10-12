@@ -92,34 +92,34 @@ const authSlice = createSlice({
       persistState(state);
     },
         
-        setUser: (state, action: PayloadAction<User>) => {
-          console.log('👤 setUser:', action.payload.gmail);
-          
-          state.user = action.payload;
-          
-          // Persistir cambios
-          persistState(state);
-        },
-        
-        updateAccessToken: (state, action: PayloadAction<string>) => {
-          const newToken = action.payload;
-          
-          console.log('🔄 updateAccessToken:', {
-            oldTokenPreview: state.accessToken?.substring(0, 20) + '...',
-            newTokenPreview: newToken.substring(0, 20) + '...',
-            changed: state.accessToken !== newToken
-          });
-          
-          // 🔥 CRÍTICO: Actualizar el token
-          state.accessToken = newToken;
-          
-          // 🔥 Mantener isAuthenticated en true si hay token
-          if (newToken) {
-            state.isAuthenticated = true;
-          }
-          
-          // Persistir cambios INMEDIATAMENTE
-          persistState(state);
+    setUser: (state, action: PayloadAction<User>) => {
+      console.log('👤 setUser:', action.payload.gmail);
+      
+      state.user = action.payload;
+      
+      // Persistir cambios
+      persistState(state);
+    },
+    
+    updateAccessToken: (state, action: PayloadAction<string>) => {
+      const newToken = action.payload;
+      
+      console.log('🔄 updateAccessToken:', {
+        oldTokenPreview: state.accessToken?.substring(0, 20) + '...',
+        newTokenPreview: newToken.substring(0, 20) + '...',
+        changed: state.accessToken !== newToken
+      });
+      
+      // 🔥 CRÍTICO: Actualizar el token
+      state.accessToken = newToken;
+      
+      // 🔥 Mantener isAuthenticated en true si hay token
+      if (newToken) {
+        state.isAuthenticated = true;
+      }
+      
+      // Persistir cambios INMEDIATAMENTE
+      persistState(state);
     },
     
     logout: (state) => {
@@ -151,5 +151,6 @@ export const selectAccessToken = (state: RootState) => state.auth.accessToken;
 export const selectUsuarioId = (state: RootState) => state.auth.usuarioId;
 export const selectIsAuthenticated = (state: RootState) => state.auth.isAuthenticated;
 export const selectIsAdmin = (state: RootState) => state.auth.user?.rol === 'ADMIN';
+export const selectIsWorker = (state: RootState) => state.auth.user?.rol === 'TRABAJADOR';
 
 export default authSlice.reducer;
