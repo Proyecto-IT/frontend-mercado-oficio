@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { ArrowLeft, Upload, MapPin, Clock, Plus, X, AlertCircle, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,12 +12,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import Header from "@/components/Header";
 import { oficioService } from "@/services/oficioService";
 import { servicioService } from "@/services/servicioService";
-import { Oficio, PortafolioRequest, ServicioRequest } from "@/types/servicio.types";
+import { Oficio, PortafolioRequest, ServicioUpdate } from "@/types/servicio.types";
 import { diasSemana, validarDisponibilidad } from "@/utils/validation";
 import { useToast } from "@/hooks/use-toast";
-import { authService } from '@/services/authService';
-import { useDispatch } from 'react-redux';
-import { setUser, updateAccessToken } from '@/store/authSlice'; // 🔹 IMPORTANTE
 
 interface DisponibilidadDia {
   dia: string;
@@ -37,16 +34,17 @@ interface PortafolioForm {
   descripcion: string;
 }
 
-const WorkerRegister = () => {
+const EditarServicio = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { id } = useParams<{ id: string }>();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const dispatch = useDispatch();
 
   // Estados para oficios
   const [oficios, setOficios] = useState<Oficio[]>([]);
   const [oficioSeleccionado, setOficioSeleccionado] = useState<string>("");
   const [cargandoOficios, setCargandoOficios] = useState(true);
+  const [cargandoServicio, setCargandoServicio] = useState(true);
   
   // Estados para el formulario
   const [descripcion, setDescripcion] = useState("");
@@ -54,9 +52,10 @@ const WorkerRegister = () => {
   const [experiencia, setExperiencia] = useState("");
   const [ubicacion, setUbicacion] = useState("");
   
-  // NUEVO: Estado para archivo de imagen
+  // Estado para imagen
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
+  const [imagenActual, setImagenActual] = useState<string | null>(null);
   
   // Disponibilidad
   const [disponibilidad, setDisponibilidad] = useState<DisponibilidadDia[]>(
@@ -79,10 +78,13 @@ const WorkerRegister = () => {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar oficios al montar
+  // Cargar oficios y servicio al montar
   useEffect(() => {
     cargarOficios();
-  }, []);
+    if (id) {
+      cargarServicio(parseInt(id));
+    }
+  }, [id]);
 
   const cargarOficios = async () => {
     try {
@@ -101,7 +103,69 @@ const WorkerRegister = () => {
     }
   };
 
-  // NUEVO: Manejar selección de imagen
+  const cargarServicio = async (servicioId: number) => {
+    try {
+      setCargandoServicio(true);
+      const servicio = await servicioService.obtenerPorId(servicioId);
+      
+      // Cargar datos básicos
+      setOficioSeleccionado(servicio.oficioId.toString());
+      setDescripcion(servicio.descripcion || "");
+      setTarifaHora(servicio.tarifaHora?.toString() || "");
+      setExperiencia(servicio.experiencia.toString());
+      setUbicacion(servicio.ubicacion);
+      setImagenActual(servicio.imagenUrl || null);
+      
+      // Cargar disponibilidad
+      const disponibilidadCargada = diasSemana.map(dia => {
+        const horario = servicio.disponibilidad[dia.value];
+        if (horario) {
+          const [inicio, fin] = horario.split('-');
+          return {
+            dia: dia.value,
+            horaInicio: inicio,
+            horaFin: fin,
+            activo: true
+          };
+        }
+        return {
+          dia: dia.value,
+          horaInicio: "09:00",
+          horaFin: "18:00",
+          activo: false
+        };
+      });
+      setDisponibilidad(disponibilidadCargada);
+      
+      // Cargar especialidades
+      const especialidadesCargadas = servicio.especialidades.map((esp, idx) => ({
+        id: `esp-${idx}`,
+        nombre: esp
+      }));
+      setEspecialidades(especialidadesCargadas);
+      
+      // Cargar portafolios
+      const portafoliosCargados = servicio.portafolios.map(port => ({
+        id: port.id.toString(),
+        titulo: port.titulo,
+        descripcion: port.descripcion
+      }));
+      setPortafolios(portafoliosCargados);
+      
+    } catch (err) {
+      console.error("Error al cargar servicio:", err);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo cargar el servicio"
+      });
+      navigate("/dashboard");
+    } finally {
+      setCargandoServicio(false);
+    }
+  };
+
+  // Manejar selección de imagen
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     
@@ -119,7 +183,7 @@ const WorkerRegister = () => {
     }
     
     // Validar tamaño (máx 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       toast({
         variant: "destructive",
@@ -139,7 +203,6 @@ const WorkerRegister = () => {
     reader.readAsDataURL(file);
   };
 
-  // NUEVO: Eliminar imagen seleccionada
   const eliminarImagen = () => {
     setImagenFile(null);
     setImagenPreview(null);
@@ -296,6 +359,11 @@ const WorkerRegister = () => {
       return;
     }
 
+    if (!id) {
+      setError("ID de servicio no válido");
+      return;
+    }
+
     try {
       setEnviando(true);
 
@@ -315,8 +383,8 @@ const WorkerRegister = () => {
           descripcion: p.descripcion.trim()
         }));
 
-      // Construir request
-      const servicioData: ServicioRequest = {
+      // Construir update
+      const servicioData: ServicioUpdate = {
         oficioId: parseInt(oficioSeleccionado),
         descripcion: descripcion.trim() || undefined,
         tarifaHora: tarifaHora ? parseFloat(tarifaHora) : undefined,
@@ -327,42 +395,23 @@ const WorkerRegister = () => {
         portafolios: portafoliosData.length > 0 ? portafoliosData : undefined
       };
 
-      console.log("Enviando servicio:", servicioData);
+      console.log("Actualizando servicio:", servicioData);
       console.log("Con imagen:", imagenFile?.name);
 
-      // 1️⃣ Crear el servicio
-      const respuesta = await servicioService.crear(servicioData, imagenFile || undefined);
-      console.log("Servicio creado:", respuesta);
+      await servicioService.actualizar(parseInt(id), servicioData, imagenFile || undefined);
 
-      // 2️⃣ Refrescar token solo si el rol cambió
-      if (respuesta.rolActualizado) {
-        try {
-          console.log("🔄 Rol actualizado, refrescando token...");
-          const refreshResponse = await authService.refreshToken();
-          dispatch(updateAccessToken(refreshResponse.accessToken));
-
-          const userInfo = await authService.getUserInfo();
-          dispatch(setUser(userInfo));
-          console.log("✅ Usuario y token actualizados");
-        } catch (refreshError) {
-          console.warn("⚠️ No se pudo refrescar token:", refreshError);
-        }
-      }
-
-      // 3️⃣ Notificación de éxito
       toast({
         title: "¡Éxito!",
-        description: "Tu servicio ha sido registrado correctamente"
+        description: "Tu servicio ha sido actualizado correctamente"
       });
 
-      // 4️⃣ Redirigir al dashboard de servicios del usuario
       navigate("/dashboard");
 
     } catch (err: any) {
-      console.error("Error al crear servicio:", err);
+      console.error("Error al actualizar servicio:", err);
       const mensajeError = err.response?.data?.mensaje 
         || err.response?.data?.errores
-        || "Ocurrió un error al registrar el servicio";
+        || "Ocurrió un error al actualizar el servicio";
 
       setError(typeof mensajeError === 'string' 
         ? mensajeError 
@@ -371,12 +420,25 @@ const WorkerRegister = () => {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudo registrar el servicio"
+        description: "No se pudo actualizar el servicio"
       });
     } finally {
       setEnviando(false);
     }
   };
+
+  if (cargandoServicio || cargandoOficios) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Cargando...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -385,9 +447,9 @@ const WorkerRegister = () => {
       <main className="container mx-auto px-4 py-8">
         {/* Breadcrumb */}
         <div className="mb-6">
-          <Link to="/auth" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+          <Link to="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-1" />
-            Volver
+            Volver a Mis Servicios
           </Link>
         </div>
 
@@ -395,10 +457,10 @@ const WorkerRegister = () => {
           <Card className="bg-serviceCard">
             <CardHeader className="text-center">
               <CardTitle className="text-3xl font-bold text-card-foreground">
-                Registra tu Servicio Profesional
+                Editar Servicio
               </CardTitle>
               <CardDescription>
-                Completa tu perfil y comienza a recibir solicitudes de clientes
+                Actualiza la información de tu servicio profesional
               </CardDescription>
             </CardHeader>
             
@@ -419,10 +481,9 @@ const WorkerRegister = () => {
                   <Select
                     value={oficioSeleccionado}
                     onValueChange={setOficioSeleccionado}
-                    disabled={cargandoOficios}
                   >
                     <SelectTrigger className="bg-background">
-                      <SelectValue placeholder={cargandoOficios ? "Cargando..." : "Selecciona tu oficio"} />
+                      <SelectValue placeholder="Selecciona tu oficio" />
                     </SelectTrigger>
                     <SelectContent>
                       {oficios.map(oficio => (
@@ -432,6 +493,66 @@ const WorkerRegister = () => {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+
+                {/* Imagen del servicio */}
+                <div className="space-y-2">
+                  <Label>Imagen del Servicio</Label>
+                  
+                  {/* Preview de imagen actual o nueva */}
+                  {(imagenPreview || imagenActual) && (
+                    <div className="relative w-full h-48 rounded-lg overflow-hidden border-2 border-dashed border-border">
+                      <img
+                        src={imagenPreview || imagenActual || ''}
+                        alt="Preview"
+                        className="w-full h-full object-cover"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="icon"
+                        className="absolute top-2 right-2"
+                        onClick={eliminarImagen}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Botón para subir imagen */}
+                  {!imagenPreview && !imagenActual && (
+                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Haz click para subir una imagen
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        JPG, PNG, GIF o WEBP (máx. 10MB)
+                      </p>
+                    </div>
+                  )}
+                  
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    onChange={handleImageChange}
+                    className="hidden"
+                  />
+                  
+                  {!imagenPreview && !imagenActual && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full"
+                    >
+                      <ImageIcon className="w-4 h-4 mr-2" />
+                      Seleccionar Imagen
+                    </Button>
+                  )}
                 </div>
 
                 {/* Ubicación */}
@@ -502,82 +623,38 @@ const WorkerRegister = () => {
                   <p className="text-xs text-muted-foreground">{descripcion.length}/400 caracteres</p>
                 </div>
 
-                {/* Especialidades */}
-                <div className="space-y-4">
-                  <Label>Especialidades * (1-10)</Label>
-                  
-                  <div className="flex gap-2">
-                    <Input
-                      placeholder="Ej: Instalaciones eléctricas"
-                      value={nuevaEspecialidad}
-                      onChange={(e) => setNuevaEspecialidad(e.target.value)}
-                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), agregarEspecialidad())}
-                      className="bg-background"
-                      maxLength={50}
-                    />
-                    <Button
-                      type="button"
-                      onClick={agregarEspecialidad}
-                      disabled={especialidades.length >= 10}
-                    >
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-2">
-                    {especialidades.map(esp => (
-                      <div
-                        key={esp.id}
-                        className="flex items-center gap-1 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm"
-                      >
-                        {esp.nombre}
-                        <button
-                          type="button"
-                          onClick={() => eliminarEspecialidad(esp.id)}
-                          className="hover:text-destructive"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Disponibilidad */}
-                <div className="space-y-4">
-                  <Label>Disponibilidad Horaria *</Label>
-                  
+                <div className="space-y-3">
+                  <Label>Disponibilidad *</Label>
                   <div className="space-y-3">
-                    {disponibilidad.map(dia => {
-                      const diaLabel = diasSemana.find(d => d.value === dia.dia)?.label || dia.dia;
+                    {diasSemana.map(dia => {
+                      const diaData = disponibilidad.find(d => d.dia === dia.value);
+                      if (!diaData) return null;
                       
                       return (
-                        <div key={dia.dia} className="flex items-center gap-3">
+                        <div key={dia.value} className="flex items-center gap-3">
                           <Checkbox
-                            id={dia.dia}
-                            checked={dia.activo}
-                            onCheckedChange={() => toggleDiaDisponibilidad(dia.dia)}
+                            id={`dia-${dia.value}`}
+                            checked={diaData.activo}
+                            onCheckedChange={() => toggleDiaDisponibilidad(dia.value)}
                           />
-                          <Label
-                            htmlFor={dia.dia}
-                            className="w-24 text-sm font-medium"
-                          >
-                            {diaLabel}
+                          <Label htmlFor={`dia-${dia.value}`} className="w-24 cursor-pointer">
+                            {dia.label}
                           </Label>
                           
-                          {dia.activo && (
+                          {diaData.activo && (
                             <div className="flex items-center gap-2 flex-1">
                               <Input
                                 type="time"
-                                value={dia.horaInicio}
-                                onChange={(e) => actualizarHorario(dia.dia, 'inicio', e.target.value)}
+                                value={diaData.horaInicio}
+                                onChange={(e) => actualizarHorario(dia.value, 'inicio', e.target.value)}
                                 className="bg-background w-32"
                               />
                               <span className="text-muted-foreground">a</span>
                               <Input
                                 type="time"
-                                value={dia.horaFin}
-                                onChange={(e) => actualizarHorario(dia.dia, 'fin', e.target.value)}
+                                value={diaData.horaFin}
+                                onChange={(e) => actualizarHorario(dia.value, 'fin', e.target.value)}
                                 className="bg-background w-32"
                               />
                             </div>
@@ -588,69 +665,57 @@ const WorkerRegister = () => {
                   </div>
                 </div>
 
-                {/* NUEVO: Imagen de Perfil con Upload de Archivo */}
-                <div className="space-y-4">
-                  <Label>Imagen de Perfil</Label>
+                {/* Especialidades */}
+                <div className="space-y-3">
+                  <Label>Especialidades *</Label>
                   
-                  {!imagenPreview ? (
-                    <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                        onChange={handleImageChange}
-                        className="hidden"
-                        id="imagen-upload"
-                      />
-                      <label
-                        htmlFor="imagen-upload"
-                        className="cursor-pointer flex flex-col items-center"
-                      >
-                        <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Sube una foto profesional tuya
-                        </p>
-                        <Button type="button" variant="outline" size="sm">
-                        Seleccionar Archivo
-                        </Button>
-                      </label>
-                      <p className="text-xs text-muted-foreground mt-3">
-                        Formatos: JPG, PNG, GIF, WEBP • Máximo 10MB
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="relative border-2 border-muted rounded-lg p-4">
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={imagenPreview}
-                          alt="Preview"
-                          className="w-32 h-32 object-cover rounded-lg"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{imagenFile?.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {(imagenFile!.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={eliminarImagen}
-                          className="text-destructive hover:text-destructive"
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Ej: Instalación eléctrica residencial"
+                      className="bg-background"
+                      value={nuevaEspecialidad}
+                      onChange={(e) => setNuevaEspecialidad(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), agregarEspecialidad())}
+                      maxLength={50}
+                    />
+                    <Button
+                      type="button"
+                      onClick={agregarEspecialidad}
+                      disabled={!nuevaEspecialidad.trim()}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                  
+                  {especialidades.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {especialidades.map(esp => (
+                        <div
+                          key={esp.id}
+                          className="bg-secondary text-secondary-foreground px-3 py-1 rounded-full flex items-center gap-2 text-sm"
                         >
-                          <X className="w-4 h-4 mr-1" />
-                          Eliminar
-                        </Button>
-                      </div>
+                          <span>{esp.nombre}</span>
+                          <button
+                            type="button"
+                            onClick={() => eliminarEspecialidad(esp.id)}
+                            className="hover:text-destructive"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
                   )}
+                  
+                  <p className="text-xs text-muted-foreground">
+                    {especialidades.length}/10 especialidades
+                  </p>
                 </div>
 
                 {/* Portafolios */}
-                <div className="space-y-4">
+                <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label>Portafolio (Opcional)</Label>
+                    <Label>Portafolio de Trabajos</Label>
                     <Button
                       type="button"
                       variant="outline"
@@ -658,7 +723,7 @@ const WorkerRegister = () => {
                       onClick={agregarPortafolio}
                     >
                       <Plus className="w-4 h-4 mr-1" />
-                      Agregar trabajo
+                      Agregar Trabajo
                     </Button>
                   </div>
                   
@@ -666,84 +731,69 @@ const WorkerRegister = () => {
                     <div className="space-y-4">
                       {portafolios.map((portafolio, index) => (
                         <Card key={portafolio.id} className="bg-background">
-                          <CardContent className="pt-6">
-                            <div className="space-y-3">
-                              <div className="flex items-center justify-between">
-                                <Label className="text-sm font-semibold">
-                                  Trabajo #{index + 1}
-                                </Label>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => eliminarPortafolio(portafolio.id)}
-                                >
-                                  <X className="w-4 h-4" />
-                                </Button>
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label htmlFor={`titulo-${portafolio.id}`}>
-                                  Título del proyecto *
-                                </Label>
-                                <Input
-                                  id={`titulo-${portafolio.id}`}
-                                  placeholder="Ej: Instalación eléctrica completa"
-                                  value={portafolio.titulo}
-                                  onChange={(e) => 
-                                    actualizarPortafolio(portafolio.id, 'titulo', e.target.value)
-                                  }
-                                  className="bg-serviceCard"
-                                  maxLength={100}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  {portafolio.titulo.length}/100 caracteres
-                                </p>
-                              </div>
-                              
-                              <div className="space-y-2">
-                                <Label htmlFor={`desc-${portafolio.id}`}>
-                                  Descripción del proyecto *
-                                </Label>
-                                <Textarea
-                                  id={`desc-${portafolio.id}`}
-                                  placeholder="Describe brevemente el trabajo realizado..."
-                                  value={portafolio.descripcion}
-                                  onChange={(e) => 
-                                    actualizarPortafolio(portafolio.id, 'descripcion', e.target.value)
-                                  }
-                                  className="bg-serviceCard min-h-[80px]"
-                                  maxLength={200}
-                                />
-                                <p className="text-xs text-muted-foreground">
-                                  {portafolio.descripcion.length}/200 caracteres
-                                </p>
-                              </div>
+                          <CardHeader className="pb-3">
+                            <div className="flex items-center justify-between">
+                              <CardTitle className="text-sm">Trabajo #{index + 1}</CardTitle>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => eliminarPortafolio(portafolio.id)}
+                              >
+                                <X className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          </CardHeader>
+                          <CardContent className="space-y-3">
+                            <div className="space-y-2">
+                              <Label htmlFor={`port-titulo-${portafolio.id}`}>Título</Label>
+                              <Input
+                                id={`port-titulo-${portafolio.id}`}
+                                placeholder="Ej: Instalación Sistema Eléctrico Comercial"
+                                className="bg-serviceCard"
+                                value={portafolio.titulo}
+                                onChange={(e) => actualizarPortafolio(portafolio.id, 'titulo', e.target.value)}
+                                maxLength={100}
+                              />
+                            </div>
+                            
+                            <div className="space-y-2">
+                              <Label htmlFor={`port-desc-${portafolio.id}`}>Descripción</Label>
+                              <Textarea
+                                id={`port-desc-${portafolio.id}`}
+                                placeholder="Describe el trabajo realizado..."
+                                className="bg-serviceCard min-h-[80px]"
+                                value={portafolio.descripcion}
+                                onChange={(e) => actualizarPortafolio(portafolio.id, 'descripcion', e.target.value)}
+                                maxLength={200}
+                              />
                             </div>
                           </CardContent>
                         </Card>
                       ))}
                     </div>
                   )}
-                  
-                  {portafolios.length === 0 && (
-                    <div className="text-center py-8 border-2 border-dashed border-muted-foreground/30 rounded-lg">
-                      <p className="text-sm text-muted-foreground">
-                        Agrega ejemplos de trabajos realizados para destacar tu experiencia
-                      </p>
-                    </div>
-                  )}
                 </div>
 
-                {/* Botón de envío */}
-                <Button 
-                  type="submit"
-                  className="w-full bg-workerButton hover:bg-workerButton/90 text-workerButton-text"
-                  size="lg"
-                  disabled={enviando}
-                >
-                  {enviando ? "Registrando..." : "Registrar mi Servicio"}
-                </Button>
+                {/* Botones de acción */}
+                <div className="flex gap-3 pt-4">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate("/dashboard")}
+                    className="flex-1"
+                    disabled={enviando}
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-workerButton hover:bg-workerButton/90 text-workerButton-text"
+                    disabled={enviando}
+                  >
+                    {enviando ? "Guardando..." : "Guardar Cambios"}
+                  </Button>
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -753,4 +803,4 @@ const WorkerRegister = () => {
   );
 };
 
-export default WorkerRegister;
+export default EditarServicio;

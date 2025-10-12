@@ -186,13 +186,6 @@ const Reviews = ({ workerId, workerName, averageRating, totalReviews, hasComplet
             >
               Reseñas de Clientes
             </Button>
-            <Button
-              variant={activeTab === 'provider' ? 'default' : 'outline'}
-              onClick={() => setActiveTab('provider')}
-              size="sm"
-            >
-              Reseñas del Prestador
-            </Button>
           </div>
         </CardHeader>
       </Card>
@@ -328,121 +321,6 @@ const Reviews = ({ workerId, workerName, averageRating, totalReviews, hasComplet
                 <MessageCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
                 <p>Aún no hay reseñas para este prestador</p>
                 <p className="text-sm">¡Sé el primero en dejar una reseña!</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Reseñas del prestador a clientes */}
-      {activeTab === 'provider' && (
-        <Card className="bg-serviceCard">
-          <CardHeader>
-            <div className="flex justify-between items-start">
-              <div>
-                <CardTitle className="text-lg">Reseñas del Prestador</CardTitle>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Opiniones de {workerName} sobre sus clientes
-                </p>
-              </div>
-              
-              {currentUser.isProvider && hasCompletedService && !hasReviewedAsProvider && (
-                <Button 
-                  onClick={() => setShowProviderReviewForm(!showProviderReviewForm)}
-                  variant="outline"
-                >
-                  Reseñar cliente
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-6">
-            {/* Formulario de reseña del prestador */}
-            {showProviderReviewForm && hasCompletedService && !hasReviewedAsProvider && (
-              <Card className="bg-background/50">
-                <CardContent className="p-4">
-                  <h4 className="font-semibold mb-3">Reseñar cliente</h4>
-                  
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium mb-2">Calificación</label>
-                    <div className="flex">
-                      {Array.from({ length: 5 }, (_, index) => {
-                        const starNumber = index + 1;
-                        const isFilled = starNumber <= (hoveredProviderStar || newProviderRating);
-                        
-                        return (
-                          <Star
-                            key={index}
-                            className={`w-5 h-5 cursor-pointer transition-colors ${
-                              isFilled ? "text-yellow-500 fill-current" : "text-gray-300"
-                            }`}
-                            onClick={() => setNewProviderRating(starNumber)}
-                            onMouseEnter={() => setHoveredProviderStar(starNumber)}
-                            onMouseLeave={() => setHoveredProviderStar(0)}
-                          />
-                        );
-                      })}
-                    </div>
-                  </div>
-                  
-                  <div className="mb-3">
-                    <label className="block text-sm font-medium mb-2">Comentario</label>
-                    <Textarea
-                      value={newProviderReview}
-                      onChange={(e) => setNewProviderReview(e.target.value)}
-                      placeholder="Comparte tu experiencia con este cliente..."
-                      rows={3}
-                    />
-                  </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      onClick={handleSubmitProviderReview}
-                      disabled={!newProviderReview.trim() || newProviderRating === 0}
-                    >
-                      Publicar reseña
-                    </Button>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setShowProviderReviewForm(false)}
-                    >
-                      Cancelar
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Lista de reseñas del prestador */}
-            <div className="space-y-4">
-              {providerReviews.map((review) => (
-                <Card key={review.id} className="bg-background/30">
-                  <CardContent className="p-4">
-                    <div className="flex justify-between items-start mb-2">
-                      <div>
-                        <h5 className="font-semibold">{review.providerName}</h5>
-                        <div className="flex items-center gap-2">
-                          <div className="flex">{renderStars(review.rating, false, "w-4 h-4")}</div>
-                          <span className="text-sm text-muted-foreground">{review.date}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <p className="text-card-foreground mb-2">{review.comment}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Cliente: {review.clientName}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-            
-            {providerReviews.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <MessageCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Aún no hay reseñas del prestador</p>
-                <p className="text-sm">Las reseñas aparecerán después de completar servicios</p>
               </div>
             )}
           </CardContent>
