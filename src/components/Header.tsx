@@ -3,6 +3,7 @@ import { Search, User, Menu, ChevronDown, LogOut, FileText, Settings } from "luc
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +11,17 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { logout, selectIsAuthenticated, selectCurrentUser, selectIsAdmin } from "@/store/authSlice";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { logout, selectIsAuthenticated, selectCurrentUser, selectIsAdmin, selectIsWorker } from "@/store/authSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { authService } from "@/services/authService";
 
@@ -22,6 +33,9 @@ const Header = () => {
   const isLoggedIn = useAppSelector(selectIsAuthenticated);
   const user = useAppSelector(selectCurrentUser);
   const isAdmin = useAppSelector(selectIsAdmin);
+  const isWorker = useAppSelector(selectIsWorker);
+
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -31,6 +45,14 @@ const Header = () => {
     } catch (error) {
       console.error('Error en logout:', error);
       navigate('/', { replace: true });
+    }
+  };
+
+  const handleWorkerRegisterClick = () => {
+    if (!isLoggedIn) {
+      setShowAuthDialog(true);
+    } else {
+      navigate('/worker/register');
     }
   };
 
@@ -97,9 +119,15 @@ const Header = () => {
               </DropdownMenuContent>
             </DropdownMenu>
             
-            <a href="#" className="hover:text-primary transition-colors text-sm lg:text-base whitespace-nowrap hidden lg:inline">
-              ¿Eres trabajador?
-            </a>
+            {/* Botón ser trabajador / añadir servicio - solo visible si NO es admin */}
+            {!isAdmin && (
+              <button
+                onClick={handleWorkerRegisterClick}
+                className="hover:text-primary transition-colors text-sm lg:text-base whitespace-nowrap hidden lg:inline bg-transparent border-0 cursor-pointer"
+              >
+                {isWorker ? 'Añadir Nuevo Servicio' : 'Ser Trabajador'}
+              </button>
+            )}
             
             <a href="#" className="hover:text-primary transition-colors text-sm lg:text-base whitespace-nowrap hidden lg:inline">
               Ayuda
@@ -187,6 +215,27 @@ const Header = () => {
           </div>
         </div>
       </div>
+
+      {/* Dialog de autenticación requerida */}
+      <AlertDialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Autenticación requerida</AlertDialogTitle>
+            <AlertDialogDescription>
+              Para registrarte como trabajador, primero debes crear una cuenta e iniciar sesión como usuario.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              setShowAuthDialog(false);
+              navigate('/auth');
+            }}>
+              Ir a Registro / Iniciar Sesión
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </header>
   );
 };

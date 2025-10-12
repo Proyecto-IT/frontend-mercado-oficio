@@ -14,6 +14,8 @@ import Payment from "./pages/Payment";
 import ManageOccupations from "./pages/Admin/ManageOccupations";
 import ValidateEmail from "./pages/ValidateEmail";
 import NotFound from "./pages/NotFound";
+import MisServicios from "./pages/MisServicios";
+import EditarServicio from "./pages/EditarServicio";
 
 const queryClient = new QueryClient();
 
@@ -26,13 +28,15 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
-            <Route path="/worker/:id" element={<WorkerProfile />} />
+            <Route path="/servicio/:id" element={<WorkerProfile />} />
             <Route path="/auth" element={<Auth />} />
             <Route path="/worker/register" element={<WorkerRegister />} />
             <Route path="/chat/:workerId" element={<Chat />} />
             <Route path="/payment/:workerId" element={<Payment />} />
             <Route path="/admin/occupations" element={<ManageOccupations />} />
             <Route path="/validate-email" element={<ValidateEmail />} />
+            <Route path="/dashboard" element={<MisServicios />} />
+            <Route path="/editar-servicio/:id" element={<EditarServicio />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>

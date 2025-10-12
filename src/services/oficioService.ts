@@ -1,29 +1,29 @@
 import { apiClient } from '@/services/apiClient';
 
-export interface Occupation {
+export interface Oficio {
   id: number;
   nombre: string;
 }
 
-export interface OccupationCreateRequest {
+export interface OficioCreateRequest {
   nombre: string;
 }
 
-export interface OccupationUpdateRequest {
+export interface OficioUpdateRequest {
   id: number;
   nombre: string;
 }
 
-class OccupationService {
+class OficioService {
   private readonly BASE_URL = '/api/oficios';
 
   /**
    * Obtiene todos los oficios
    */
-  async getAll(): Promise<Occupation[]> {
+  async ListarTodos(): Promise<Oficio[]> {
     console.log('🔵 Llamando GET', this.BASE_URL);
     try {
-      const response = await apiClient.get<Occupation[]>(this.BASE_URL);
+      const response = await apiClient.get<Oficio[]>(this.BASE_URL);
       console.log('✅ Respuesta GET:', response.data);
       return response.data;
     } catch (error: any) {
@@ -35,10 +35,10 @@ class OccupationService {
   /**
    * Busca oficios por nombre
    */
-  async searchByName(nombre: string): Promise<Occupation[]> {
+  async BuscarPorNombre(nombre: string): Promise<Oficio[]> {
     console.log('🔵 Llamando GET /buscar con nombre:', nombre);
     try {
-      const response = await apiClient.get<Occupation[]>(`${this.BASE_URL}/buscar`, {
+      const response = await apiClient.get<Oficio[]>(`${this.BASE_URL}/buscar`, {
         params: { nombre }
       });
       console.log('✅ Respuesta búsqueda:', response.data);
@@ -52,10 +52,10 @@ class OccupationService {
   /**
    * Crea un nuevo oficio
    */
-  async create(data: OccupationCreateRequest): Promise<Occupation> {
+  async create(data: OficioCreateRequest): Promise<Oficio> {
     console.log('🔵 Llamando POST', this.BASE_URL, 'con datos:', data);
     try {
-      const response = await apiClient.post<Occupation>(this.BASE_URL, data);
+      const response = await apiClient.post<Oficio>(this.BASE_URL, data);
       console.log('✅ Respuesta POST:', response.data);
       return response.data;
     } catch (error: any) {
@@ -67,10 +67,10 @@ class OccupationService {
   /**
    * Actualiza un oficio existente
    */
-  async update(data: OccupationUpdateRequest): Promise<Occupation> {
+  async update(data: OficioUpdateRequest): Promise<Oficio> {
     console.log('🔵 Llamando PUT', this.BASE_URL, 'con datos:', data);
     try {
-      const response = await apiClient.put<Occupation>(this.BASE_URL, data);
+      const response = await apiClient.put<Oficio>(this.BASE_URL, data);
       console.log('✅ Respuesta PUT:', response.data);
       return response.data;
     } catch (error: any) {
@@ -97,4 +97,4 @@ class OccupationService {
 }
 
 // Exportar una instancia única del servicio
-export const occupationService = new OccupationService();
+export const oficioService = new OficioService();

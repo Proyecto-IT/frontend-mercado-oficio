@@ -8,44 +8,46 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Mercado Oficio Color Palette */
-    --background: 33 7% 63%; /* #a49a98 - page background */
-    --foreground: 0 0% 11%; /* #1b1a1a - header text */
+    /* Mercado Oficio Color Palette - Refined Blue Theme */
+    --background: 210 20% 98%; /* Fondo suave azul claro */
+    --foreground: 216 50% 16%; /* Texto oscuro azulado */
 
     --card: 0 0% 100%; /* #ffffff - service cards */
-    --card-foreground: 0 0% 11%; /* #1b1a1a */
+    --card-foreground: 216 50% 16%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 11%;
+    --popover-foreground: 216 50% 16%;
 
-    --primary: 216 45% 26%; /* #26385f - worker page button */
+    --primary: 216 65% 42%; /* Azul vibrante de la marca */
     --primary-foreground: 0 0% 100%; /* #ffffff - button text */
 
-    --secondary: 0 0% 100%; /* #ffffff */
-    --secondary-foreground: 0 0% 11%; /* #1b1a1a */
+    --secondary: 210 40% 96%; /* Azul muy claro */
+    --secondary-foreground: 216 50% 16%;
 
-    --muted: 33 7% 68%;
-    --muted-foreground: 0 0% 45%;
+    --muted: 210 30% 92%;
+    --muted-foreground: 216 15% 45%;
 
-    --accent: 33 7% 58%;
-    --accent-foreground: 0 0% 11%;
+    --accent: 216 70% 50%; /* Azul brillante para acentos */
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 90%;
+    --border: 210 20% 88%;
     --input: 0 0% 100%;
-    --ring: 216 45% 26%;
+    --ring: 216 65% 42%;
 
-    /* Header specific */
-    --header-bg: 0 0% 100%; /* #ffffff */
-    --header-text: 0 0% 11%; /* #1b1a1a */
+    /* Header con degradado sutil */
+    --header-bg: 0 0% 100%; /* Blanco limpio */
+    --header-text: 216 50% 16%; /* Texto azul oscuro */
+    --header-gradient-start: 216 75% 48%; /* Azul de marca */
+    --header-gradient-end: 216 65% 42%; /* Azul ligeramente más oscuro */
     
     /* Service cards */
     --service-card: 0 0% 100%; /* #ffffff */
     
     /* Worker button */
-    --worker-button: 216 45% 26%; /* #26385f */
+    --worker-button: 216 65% 42%;
     --worker-button-text: 0 0% 100%; /* #ffffff */
 
     --radius: 0.5rem;

@@ -8,12 +8,12 @@ import { Label } from "@/components/ui/label";
 import { Pencil, Trash2, Plus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
-import { occupationService, Occupation } from "@/services/oficioService";
+import { oficioService, Oficio } from "@/services/oficioService";
 
 const ManageOccupations = () => {
-  const [occupations, setOccupations] = useState<Occupation[]>([]);
+  const [occupations, setOccupations] = useState<Oficio[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingOccupation, setEditingOccupation] = useState<Occupation | null>(null);
+  const [editingOccupation, setEditingOccupation] = useState<Oficio | null>(null);
   const [nombre, setNombre] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -21,7 +21,7 @@ const ManageOccupations = () => {
   const loadOccupations = async () => {
     try {
       setIsLoading(true);
-      const data = await occupationService.getAll();
+      const data = await oficioService.ListarTodos();
       setOccupations(data);
     } catch (error) {
       toast({
@@ -48,13 +48,13 @@ const ManageOccupations = () => {
       setIsLoading(true);
       
       if (editingOccupation) {
-        await occupationService.update({ id: editingOccupation.id, nombre });
+        await oficioService.update({ id: editingOccupation.id, nombre });
         toast({
           title: "Éxito",
           description: "Oficio actualizado correctamente",
         });
       } else {
-        await occupationService.create({ nombre });
+        await oficioService.create({ nombre });
         toast({
           title: "Éxito",
           description: "Oficio creado correctamente",
@@ -80,7 +80,7 @@ const ManageOccupations = () => {
 
     try {
       setIsLoading(true);
-      await occupationService.delete(id);
+      await oficioService.delete(id);
       toast({
         title: "Éxito",
         description: "Oficio eliminado correctamente",
@@ -98,7 +98,7 @@ const ManageOccupations = () => {
     }
   };
 
-  const handleEdit = (occupation: Occupation) => {
+  const handleEdit = (occupation: Oficio) => {
     setEditingOccupation(occupation);
     setNombre(occupation.nombre);
     setIsDialogOpen(true);
