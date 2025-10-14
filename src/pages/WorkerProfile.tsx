@@ -49,6 +49,14 @@ const WorkerProfile = () => {
     return `Disponible ${diasActivos.length} días`;
   };
 
+  // 🔥 NUEVO: Función para obtener la URL de la imagen
+  const obtenerImagenUrl = (servicio: ServicioResponse): string | null => {
+    if (!servicio.imagenUsuario || !servicio.imagenUsuarioTipo) {
+      return null;
+    }
+    return `data:${servicio.imagenUsuarioTipo};base64,${servicio.imagenUsuario}`;
+  };
+
   if (cargando) {
     return (
       <div className="min-h-screen bg-background">
@@ -83,6 +91,8 @@ const WorkerProfile = () => {
     );
   }
 
+  const imagenUrl = obtenerImagenUrl(servicio); // 🔥 NUEVO
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -104,9 +114,9 @@ const WorkerProfile = () => {
               <CardContent className="p-6">
                 <div className="flex flex-col md:flex-row gap-6">
                   <div className="flex-shrink-0">
-                    {servicio.imagenUrl ? (
+                    {imagenUrl ? (
                       <img
-                        src={servicio.imagenUrl}
+                        src={imagenUrl}
                         alt={`${servicio.nombreTrabajador} ${servicio.apellidoTrabajador}`}
                         className="w-32 h-32 rounded-lg object-cover"
                       />
@@ -204,7 +214,6 @@ const WorkerProfile = () => {
                         <p className="text-sm text-muted-foreground mb-2">
                           {proyecto.descripcion}
                         </p>
-
                       </div>
                     ))}
                   </div>

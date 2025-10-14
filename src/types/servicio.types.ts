@@ -18,17 +18,17 @@ export interface PortafolioResponse {
 }
 
 // NOTA: imagenUrl ya no es string, ahora manejamos archivos
+// En tu archivo de types
 export interface ServicioRequest {
   oficioId: number;
   descripcion?: string;
   tarifaHora?: number;
-  disponibilidad: {
-    [dia: string]: string;
-  };
+  disponibilidad: { [key: string]: string };
   experiencia: number;
   especialidades: string[];
   ubicacion: string;
   portafolios?: PortafolioRequest[];
+  imagenOpcion?: 'mantener' | 'nueva' | 'ninguna'; // ← NUEVO
 }
 
 export interface ServicioResponse {
@@ -52,17 +52,18 @@ export interface ServicioResponse {
   nombreTrabajador?: string;
   apellidoTrabajador?: string;
   emailTrabajador?: string;
+  imagenUsuario: string | null; // Base64
+  imagenUsuarioTipo: string | null; // image/jpeg, image/png, etc.
 }
 
 export interface ServicioUpdate {
-  oficioId?: number;
+  oficioId: number;
   descripcion?: string;
   tarifaHora?: number;
-  disponibilidad?: {
-    [dia: string]: string;
-  };
-  experiencia?: number;
-  especialidades?: string[];
-  ubicacion?: string;
+  disponibilidad: { [key: string]: string };
+  experiencia: number;
+  especialidades: string[];
+  ubicacion: string;
   portafolios?: PortafolioRequest[];
+  imagenOpcion?: 'mantener' | 'nueva' | 'ninguna'; // ← NUEVO
 }

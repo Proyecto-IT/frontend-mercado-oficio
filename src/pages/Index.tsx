@@ -21,6 +21,13 @@ const Index = () => {
 
   useEffect(() => {
     cargarServicios();
+    
+    // Leer el filtro de oficios desde los query params
+    const params = new URLSearchParams(window.location.search);
+    const filtroUrl = params.get('filtroOficio');
+    if (filtroUrl) {
+      setFiltroOficio(decodeURIComponent(filtroUrl));
+    }
   }, []);
 
   const cargarServicios = async () => {
@@ -63,6 +70,14 @@ const Index = () => {
     return `Disponible ${diasActivos.length} días`;
   };
 
+  // 🔥 NUEVO: Función para obtener la URL de la imagen
+  const obtenerImagenUrl = (servicio: ServicioResponse): string | null => {
+    if (!servicio.imagenUsuario || !servicio.imagenUsuarioTipo) {
+      return null;
+    }
+    return `data:${servicio.imagenUsuarioTipo};base64,${servicio.imagenUsuario}`;
+  };
+
   if (cargando) {
     return (
       <div className="min-h-screen bg-background">
@@ -90,19 +105,7 @@ const Index = () => {
             Conectamos clientes con trabajadores calificados. Carpinteros, mecánicos, plomeros y más, todos verificados y con reseñas reales.
           </p>
 
-          {/* Buscador */}
-          <div className="max-w-2xl mx-auto">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-5 h-5" />
-              <Input
-                type="text"
-                placeholder="Buscar por servicio, ubicación o profesional..."
-                className="pl-10 py-6 text-lg"
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-              />
-            </div>
-          </div>
+          
         </section>
 
         {/* Filtros por oficio */}
@@ -157,118 +160,122 @@ const Index = () => {
             </Card>
           ) : (
             <div className="grid gap-6">
-              {serviciosFiltrados.map((servicio) => (
-                <Card key={servicio.id} className="bg-serviceCard hover:shadow-lg transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-start gap-4">
-                      {/* Imagen del trabajador */}
-                      <div className="w-20 h-20 rounded-full overflow-hidden bg-muted flex-shrink-0">
-                        {servicio.imagenUrl ? (
-                          <img
-                            src={servicio.imagenUrl}
-                            alt={`${servicio.nombreTrabajador} ${servicio.apellidoTrabajador}`}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-muted-foreground">
-                            {servicio.nombreTrabajador?.charAt(0) || "?"}
-                          </div>
-                        )}
-                      </div>
+              {serviciosFiltrados.map((servicio) => {
+                const imagenUrl = obtenerImagenUrl(servicio); // 🔥 NUEVO
 
-                      {/* Información principal */}
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
-                            <CardTitle className="text-xl mb-1">
-                              {servicio.nombreTrabajador} {servicio.apellidoTrabajador}
-                            </CardTitle>
-                            <Badge variant="secondary" className="mb-2">
-                              {servicio.nombreOficio}
-                            </Badge>
-                          </div>
-                          
-                          {servicio.tarifaHora && (
-                            <div className="text-right">
-                              <p className="text-2xl font-bold text-primary">
-                                {formatearTarifa(servicio.tarifaHora)}
-                              </p>
-                              <p className="text-xs text-muted-foreground">por hora</p>
+                return (
+                  <Card key={servicio.id} className="bg-serviceCard hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <div className="flex items-start gap-4">
+                        {/* Imagen del trabajador */}
+                        <div className="w-20 h-20 rounded-full overflow-hidden bg-muted flex-shrink-0">
+                          {imagenUrl ? ( // 🔥 CAMBIADO
+                            <img
+                              src={imagenUrl}
+                              alt={`${servicio.nombreTrabajador} ${servicio.apellidoTrabajador}`}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-muted-foreground">
+                              {servicio.nombreTrabajador?.charAt(0) || "?"}
                             </div>
                           )}
                         </div>
 
-                        <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
-                          <div className="flex items-center gap-1">
-                            <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                            <span className="font-medium">
-                              {servicio.trabajosCompletados > 0 ? "4.8" : "Nuevo"}
-                            </span>
-                            {servicio.trabajosCompletados > 0 && (
-                              <span>({servicio.trabajosCompletados} trabajos)</span>
+                        {/* Información principal */}
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <CardTitle className="text-xl mb-1">
+                                {servicio.nombreTrabajador} {servicio.apellidoTrabajador}
+                              </CardTitle>
+                              <Badge variant="secondary" className="mb-2">
+                                {servicio.nombreOficio}
+                              </Badge>
+                            </div>
+                            
+                            {servicio.tarifaHora && (
+                              <div className="text-right">
+                                <p className="text-2xl font-bold text-primary">
+                                  {formatearTarifa(servicio.tarifaHora)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">por hora</p>
+                              </div>
                             )}
                           </div>
-                          
-                          <div className="flex items-center gap-1">
-                            <MapPin className="w-4 h-4" />
-                            <span>{servicio.ubicacion}</span>
+
+                          <div className="flex items-center gap-4 text-sm text-muted-foreground mb-3">
+                            <div className="flex items-center gap-1">
+                              <Star className="w-4 h-4 fill-yellow-400 text-yellow-400" />
+                              <span className="font-medium">
+                                {servicio.trabajosCompletados > 0 ? "4.8" : "Nuevo"}
+                              </span>
+                              {servicio.trabajosCompletados > 0 && (
+                                <span>({servicio.trabajosCompletados} trabajos)</span>
+                              )}
+                            </div>
+                            
+                            <div className="flex items-center gap-1">
+                              <MapPin className="w-4 h-4" />
+                              <span>{servicio.ubicacion}</span>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <Clock className="w-4 h-4" />
+                              <span>{obtenerDisponibilidad(servicio.disponibilidad)}</span>
+                            </div>
                           </div>
 
-                          <div className="flex items-center gap-1">
-                            <Clock className="w-4 h-4" />
-                            <span>{obtenerDisponibilidad(servicio.disponibilidad)}</span>
-                          </div>
-                        </div>
-
-                        {servicio.descripcion && (
-                          <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
-                            {servicio.descripcion}
-                          </p>
-                        )}
-
-                        {/* Especialidades */}
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {servicio.especialidades.slice(0, 4).map((esp, idx) => (
-                            <Badge key={idx} variant="outline" className="text-xs">
-                              {esp}
-                            </Badge>
-                          ))}
-                          {servicio.especialidades.length > 4 && (
-                            <Badge variant="outline" className="text-xs">
-                              +{servicio.especialidades.length - 4} más
-                            </Badge>
+                          {servicio.descripcion && (
+                            <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                              {servicio.descripcion}
+                            </p>
                           )}
-                        </div>
 
-                        {/* Experiencia y portafolio */}
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <span>
-                            <strong>{servicio.experiencia}</strong> años de experiencia
-                          </span>
-                          {servicio.portafolios.length > 0 && (
+                          {/* Especialidades */}
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            {servicio.especialidades.slice(0, 4).map((esp, idx) => (
+                              <Badge key={idx} variant="outline" className="text-xs">
+                                {esp}
+                              </Badge>
+                            ))}
+                            {servicio.especialidades.length > 4 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{servicio.especialidades.length - 4} más
+                              </Badge>
+                            )}
+                          </div>
+
+                          {/* Experiencia y portafolio */}
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
                             <span>
-                              <strong>{servicio.portafolios.length}</strong> trabajos en portafolio
+                              <strong>{servicio.experiencia}</strong> años de experiencia
                             </span>
-                          )}
+                            {servicio.portafolios.length > 0 && (
+                              <span>
+                                <strong>{servicio.portafolios.length}</strong> trabajos en portafolio
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </CardHeader>
+                    </CardHeader>
 
-                  <CardContent>
-                    <div className="flex gap-3">
-                      <Link to={`/servicio/${servicio.id}`} className="flex-1">
-                        <Button className="w-full" variant="default">
-                          Ver Perfil Completo
+                    <CardContent>
+                      <div className="flex gap-3">
+                        <Link to={`/servicio/${servicio.id}`} className="flex-1">
+                          <Button className="w-full" variant="default">
+                            Ver Perfil Completo
+                          </Button>
+                        </Link>
+                        <Button variant="outline">
+                          Contactar
                         </Button>
-                      </Link>
-                      <Button variant="outline">
-                        Contactar
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </div>
           )}
         </section>

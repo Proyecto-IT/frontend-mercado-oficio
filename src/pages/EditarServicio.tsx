@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { ArrowLeft, Upload, MapPin, Clock, Plus, X, AlertCircle, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Upload, MapPin, Clock, Plus, X, AlertCircle, Image as ImageIcon, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,9 +9,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import Header from "@/components/Header";
 import { oficioService } from "@/services/oficioService";
 import { servicioService } from "@/services/servicioService";
+import { usuarioService } from "@/services/usuarioService";
 import { Oficio, PortafolioRequest, ServicioUpdate } from "@/types/servicio.types";
 import { diasSemana, validarDisponibilidad } from "@/utils/validation";
 import { useToast } from "@/hooks/use-toast";
@@ -34,30 +36,31 @@ interface PortafolioForm {
   descripcion: string;
 }
 
+type OpcionImagen = 'mantener' | 'nueva' | 'ninguna';
+
 const EditarServicio = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { id } = useParams<{ id: string }>();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Estados para oficios
   const [oficios, setOficios] = useState<Oficio[]>([]);
   const [oficioSeleccionado, setOficioSeleccionado] = useState<string>("");
   const [cargandoOficios, setCargandoOficios] = useState(true);
   const [cargandoServicio, setCargandoServicio] = useState(true);
   
-  // Estados para el formulario
   const [descripcion, setDescripcion] = useState("");
   const [tarifaHora, setTarifaHora] = useState("");
   const [experiencia, setExperiencia] = useState("");
   const [ubicacion, setUbicacion] = useState("");
   
-  // Estado para imagen
+  const [cargandoImagen, setCargandoImagen] = useState(true);
+  const [tieneImagenPerfil, setTieneImagenPerfil] = useState(false);
+  const [imagenPerfilUrl, setImagenPerfilUrl] = useState<string | null>(null);
+  const [opcionSeleccionada, setOpcionSeleccionada] = useState<OpcionImagen>('mantener');
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
-  const [imagenActual, setImagenActual] = useState<string | null>(null);
   
-  // Disponibilidad
   const [disponibilidad, setDisponibilidad] = useState<DisponibilidadDia[]>(
     diasSemana.map(dia => ({
       dia: dia.value,
@@ -67,20 +70,17 @@ const EditarServicio = () => {
     }))
   );
   
-  // Especialidades
   const [especialidades, setEspecialidades] = useState<Especialidad[]>([]);
   const [nuevaEspecialidad, setNuevaEspecialidad] = useState("");
   
-  // Portafolios
   const [portafolios, setPortafolios] = useState<PortafolioForm[]>([]);
   
-  // Estados de UI
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar oficios y servicio al montar
   useEffect(() => {
     cargarOficios();
+    cargarImagenPerfil();
     if (id) {
       cargarServicio(parseInt(id));
     }
@@ -103,20 +103,38 @@ const EditarServicio = () => {
     }
   };
 
+  const cargarImagenPerfil = async () => {
+    try {
+      setCargandoImagen(true);
+      const data = await usuarioService.obtenerImagenPerfil();
+      
+      setTieneImagenPerfil(data.tieneImagen);
+      
+      if (data.tieneImagen && data.imagen && data.imagenTipo) {
+        const url = usuarioService.construirImagenUrl(data.imagen, data.imagenTipo);
+        setImagenPerfilUrl(url);
+        setOpcionSeleccionada('mantener');
+      } else {
+        setOpcionSeleccionada('nueva');
+      }
+    } catch (err) {
+      console.error("Error al cargar imagen de perfil:", err);
+    } finally {
+      setCargandoImagen(false);
+    }
+  };
+
   const cargarServicio = async (servicioId: number) => {
     try {
       setCargandoServicio(true);
       const servicio = await servicioService.obtenerPorId(servicioId);
       
-      // Cargar datos básicos
       setOficioSeleccionado(servicio.oficioId.toString());
       setDescripcion(servicio.descripcion || "");
       setTarifaHora(servicio.tarifaHora?.toString() || "");
       setExperiencia(servicio.experiencia.toString());
       setUbicacion(servicio.ubicacion);
-      setImagenActual(servicio.imagenUrl || null);
       
-      // Cargar disponibilidad
       const disponibilidadCargada = diasSemana.map(dia => {
         const horario = servicio.disponibilidad[dia.value];
         if (horario) {
@@ -137,14 +155,12 @@ const EditarServicio = () => {
       });
       setDisponibilidad(disponibilidadCargada);
       
-      // Cargar especialidades
       const especialidadesCargadas = servicio.especialidades.map((esp, idx) => ({
         id: `esp-${idx}`,
         nombre: esp
       }));
       setEspecialidades(especialidadesCargadas);
       
-      // Cargar portafolios
       const portafoliosCargados = servicio.portafolios.map(port => ({
         id: port.id.toString(),
         titulo: port.titulo,
@@ -165,13 +181,11 @@ const EditarServicio = () => {
     }
   };
 
-  // Manejar selección de imagen
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     
     if (!file) return;
     
-    // Validar tipo de archivo
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       toast({
@@ -182,7 +196,6 @@ const EditarServicio = () => {
       return;
     }
     
-    // Validar tamaño (máx 10MB)
     const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       toast({
@@ -194,8 +207,8 @@ const EditarServicio = () => {
     }
     
     setImagenFile(file);
+    setOpcionSeleccionada('nueva');
     
-    // Crear preview
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagenPreview(reader.result as string);
@@ -203,7 +216,7 @@ const EditarServicio = () => {
     reader.readAsDataURL(file);
   };
 
-  const eliminarImagen = () => {
+  const eliminarImagenNueva = () => {
     setImagenFile(null);
     setImagenPreview(null);
     if (fileInputRef.current) {
@@ -211,7 +224,6 @@ const EditarServicio = () => {
     }
   };
 
-  // Manejar disponibilidad
   const toggleDiaDisponibilidad = (dia: string) => {
     setDisponibilidad(prev =>
       prev.map(d => d.dia === dia ? { ...d, activo: !d.activo } : d)
@@ -231,7 +243,6 @@ const EditarServicio = () => {
     );
   };
 
-  // Manejar especialidades
   const agregarEspecialidad = () => {
     if (!nuevaEspecialidad.trim()) return;
     
@@ -264,7 +275,6 @@ const EditarServicio = () => {
     setEspecialidades(especialidades.filter(e => e.id !== id));
   };
 
-  // Manejar portafolios
   const agregarPortafolio = () => {
     setPortafolios([
       ...portafolios,
@@ -282,7 +292,6 @@ const EditarServicio = () => {
     setPortafolios(portafolios.filter(p => p.id !== id));
   };
 
-  // Validar formulario
   const validarFormulario = (): string | null => {
     if (!oficioSeleccionado) {
       return "Debes seleccionar un oficio";
@@ -314,7 +323,6 @@ const EditarServicio = () => {
       return "Debes seleccionar al menos un día de disponibilidad";
     }
 
-    // Validar horarios
     const disponibilidadObj: { [key: string]: string } = {};
     diasActivos.forEach(dia => {
       disponibilidadObj[dia.dia] = `${dia.horaInicio}-${dia.horaFin}`;
@@ -333,7 +341,6 @@ const EditarServicio = () => {
       return "La descripción no puede exceder 400 caracteres";
     }
 
-    // Validar portafolios
     for (const portafolio of portafolios) {
       if (!portafolio.titulo.trim() || !portafolio.descripcion.trim()) {
         return "Todos los portafolios deben tener título y descripción";
@@ -367,7 +374,6 @@ const EditarServicio = () => {
     try {
       setEnviando(true);
 
-      // Construir objeto de disponibilidad
       const disponibilidadObj: { [key: string]: string } = {};
       disponibilidad
         .filter(d => d.activo)
@@ -375,7 +381,6 @@ const EditarServicio = () => {
           disponibilidadObj[dia.dia] = `${dia.horaInicio}-${dia.horaFin}`;
         });
 
-      // Construir portafolios
       const portafoliosData: PortafolioRequest[] = portafolios
         .filter(p => p.titulo.trim() && p.descripcion.trim())
         .map(p => ({
@@ -383,7 +388,6 @@ const EditarServicio = () => {
           descripcion: p.descripcion.trim()
         }));
 
-      // Construir update
       const servicioData: ServicioUpdate = {
         oficioId: parseInt(oficioSeleccionado),
         descripcion: descripcion.trim() || undefined,
@@ -392,13 +396,20 @@ const EditarServicio = () => {
         experiencia: parseInt(experiencia),
         especialidades: especialidades.map(e => e.nombre),
         ubicacion: ubicacion.trim(),
-        portafolios: portafoliosData.length > 0 ? portafoliosData : undefined
+        portafolios: portafoliosData.length > 0 ? portafoliosData : undefined,
+        imagenOpcion: opcionSeleccionada 
       };
 
       console.log("Actualizando servicio:", servicioData);
-      console.log("Con imagen:", imagenFile?.name);
+      
+      let imagenAEnviar: File | undefined;
+      if (opcionSeleccionada === 'nueva' && imagenFile) {
+        imagenAEnviar = imagenFile;
+      }
 
-      await servicioService.actualizar(parseInt(id), servicioData, imagenFile || undefined);
+      console.log("Con imagen:", imagenAEnviar?.name);
+
+      await servicioService.actualizar(parseInt(id), servicioData, imagenAEnviar);
 
       toast({
         title: "¡Éxito!",
@@ -427,7 +438,7 @@ const EditarServicio = () => {
     }
   };
 
-  if (cargandoServicio || cargandoOficios) {
+  if (cargandoServicio || cargandoOficios || cargandoImagen) {
     return (
       <div className="min-h-screen bg-background">
         <Header />
@@ -445,7 +456,6 @@ const EditarServicio = () => {
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        {/* Breadcrumb */}
         <div className="mb-6">
           <Link to="/dashboard" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-1" />
@@ -467,13 +477,146 @@ const EditarServicio = () => {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 
-                {/* Error general */}
                 {error && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
+
+                {/* Imagen de Perfil */}
+                <Card className="bg-background">
+                  <CardHeader>
+                    <CardTitle className="text-base">Imagen de Perfil</CardTitle>
+                    <CardDescription>
+                      Esta imagen se mostrará en todos tus servicios
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-4">
+                    {tieneImagenPerfil && (
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription>
+                          Tienes una imagen de perfil cargada. Puedes mantenerla, cambiarla o no usar ninguna.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <RadioGroup
+                      value={opcionSeleccionada}
+                      onValueChange={(value) => setOpcionSeleccionada(value as OpcionImagen)}
+                      className="space-y-3"
+                    >
+                      {tieneImagenPerfil && (
+                        <div className="flex items-start space-x-3 p-4 border rounded-lg bg-serviceCard">
+                          <RadioGroupItem value="mantener" id="mantener" className="mt-1" />
+                          <div className="flex-1">
+                            <Label htmlFor="mantener" className="cursor-pointer font-medium">
+                              Mantener imagen actual
+                            </Label>
+                            {imagenPerfilUrl && (
+                              <img
+                                src={imagenPerfilUrl}
+                                alt="Imagen de perfil actual"
+                                className="mt-2 w-32 h-32 rounded-lg object-cover border"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-start space-x-3 p-4 border rounded-lg bg-serviceCard">
+                        <RadioGroupItem value="nueva" id="nueva" className="mt-1" />
+                        <div className="flex-1 space-y-3">
+                          <Label htmlFor="nueva" className="cursor-pointer font-medium">
+                            {tieneImagenPerfil ? "Usar una nueva imagen" : "Agregar imagen"}
+                          </Label>
+                          
+                          {opcionSeleccionada === 'nueva' && (
+                            <>
+                              {imagenPreview ? (
+                                <div className="relative w-32 h-32 rounded-lg overflow-hidden border">
+                                  <img
+                                    src={imagenPreview}
+                                    alt="Nueva imagen"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="absolute top-1 right-1"
+                                    onClick={eliminarImagenNueva}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div
+                                  className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
+                                  onClick={() => fileInputRef.current?.click()}
+                                >
+                                  <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                                  <p className="text-sm text-muted-foreground mb-1">
+                                    Haz click para subir una imagen
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    JPG, PNG, GIF o WEBP (máx. 10MB)
+                                  </p>
+                                </div>
+                              )}
+                              
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                onChange={handleImageChange}
+                                className="hidden"
+                              />
+                              
+                              {!imagenPreview && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => fileInputRef.current?.click()}
+                                  className="w-full"
+                                >
+                                  <ImageIcon className="w-4 h-4 mr-2" />
+                                  Seleccionar Imagen
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3 p-4 border rounded-lg bg-serviceCard">
+                        <RadioGroupItem value="ninguna" id="ninguna" className="mt-1" />
+                        <div className="flex-1">
+                          <Label htmlFor="ninguna" className="cursor-pointer font-medium">
+                            No usar imagen de perfil
+                          </Label>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Tus servicios se mostrarán sin imagen
+                          </p>
+                        </div>
+                      </div>
+                    </RadioGroup>
+
+                    {(opcionSeleccionada === 'nueva' || opcionSeleccionada === 'ninguna') && tieneImagenPerfil && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          {opcionSeleccionada === 'nueva'
+                            ? "Al cambiar tu imagen de perfil, se actualizará en TODOS tus servicios existentes."
+                            : "Al eliminar tu imagen de perfil, se quitará de TODOS tus servicios existentes."}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Selección de Oficio */}
                 <div className="space-y-2">
@@ -493,66 +636,6 @@ const EditarServicio = () => {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-
-                {/* Imagen del servicio */}
-                <div className="space-y-2">
-                  <Label>Imagen del Servicio</Label>
-                  
-                  {/* Preview de imagen actual o nueva */}
-                  {(imagenPreview || imagenActual) && (
-                    <div className="relative w-full h-48 rounded-lg overflow-hidden border-2 border-dashed border-border">
-                      <img
-                        src={imagenPreview || imagenActual || ''}
-                        alt="Preview"
-                        className="w-full h-full object-cover"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="icon"
-                        className="absolute top-2 right-2"
-                        onClick={eliminarImagen}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  )}
-                  
-                  {/* Botón para subir imagen */}
-                  {!imagenPreview && !imagenActual && (
-                    <div className="border-2 border-dashed border-border rounded-lg p-8 text-center hover:border-primary transition-colors cursor-pointer"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <Upload className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
-                      <p className="text-sm text-muted-foreground mb-1">
-                        Haz click para subir una imagen
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        JPG, PNG, GIF o WEBP (máx. 10MB)
-                      </p>
-                    </div>
-                  )}
-                  
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                    onChange={handleImageChange}
-                    className="hidden"
-                  />
-                  
-                  {!imagenPreview && !imagenActual && (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => fileInputRef.current?.click()}
-                      className="w-full"
-                    >
-                      <ImageIcon className="w-4 h-4 mr-2" />
-                      Seleccionar Imagen
-                    </Button>
-                  )}
                 </div>
 
                 {/* Ubicación */}

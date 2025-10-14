@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowLeft, Upload, MapPin, Clock, Plus, X, AlertCircle, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, Upload, MapPin, Clock, Plus, X, AlertCircle, Image as ImageIcon, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,15 +9,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import Header from "@/components/Header";
 import { oficioService } from "@/services/oficioService";
 import { servicioService } from "@/services/servicioService";
+import { usuarioService } from "@/services/usuarioService";
 import { Oficio, PortafolioRequest, ServicioRequest } from "@/types/servicio.types";
 import { diasSemana, validarDisponibilidad } from "@/utils/validation";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from '@/services/authService';
 import { useDispatch } from 'react-redux';
-import { setUser, updateAccessToken } from '@/store/authSlice'; // 🔹 IMPORTANTE
+import { setUser, updateAccessToken } from '@/store/authSlice';
 
 interface DisponibilidadDia {
   dia: string;
@@ -37,28 +39,30 @@ interface PortafolioForm {
   descripcion: string;
 }
 
+type OpcionImagen = 'mantener' | 'nueva' | 'ninguna';
+
 const WorkerRegister = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dispatch = useDispatch();
 
-  // Estados para oficios
   const [oficios, setOficios] = useState<Oficio[]>([]);
   const [oficioSeleccionado, setOficioSeleccionado] = useState<string>("");
   const [cargandoOficios, setCargandoOficios] = useState(true);
   
-  // Estados para el formulario
   const [descripcion, setDescripcion] = useState("");
   const [tarifaHora, setTarifaHora] = useState("");
   const [experiencia, setExperiencia] = useState("");
   const [ubicacion, setUbicacion] = useState("");
   
-  // NUEVO: Estado para archivo de imagen
+  const [cargandoImagen, setCargandoImagen] = useState(true);
+  const [tieneImagenPerfil, setTieneImagenPerfil] = useState(false);
+  const [imagenPerfilUrl, setImagenPerfilUrl] = useState<string | null>(null);
+  const [opcionSeleccionada, setOpcionSeleccionada] = useState<OpcionImagen>('mantener');
   const [imagenFile, setImagenFile] = useState<File | null>(null);
   const [imagenPreview, setImagenPreview] = useState<string | null>(null);
   
-  // Disponibilidad
   const [disponibilidad, setDisponibilidad] = useState<DisponibilidadDia[]>(
     diasSemana.map(dia => ({
       dia: dia.value,
@@ -68,20 +72,17 @@ const WorkerRegister = () => {
     }))
   );
   
-  // Especialidades
   const [especialidades, setEspecialidades] = useState<Especialidad[]>([]);
   const [nuevaEspecialidad, setNuevaEspecialidad] = useState("");
   
-  // Portafolios
   const [portafolios, setPortafolios] = useState<PortafolioForm[]>([]);
   
-  // Estados de UI
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar oficios al montar
   useEffect(() => {
     cargarOficios();
+    cargarImagenPerfil();
   }, []);
 
   const cargarOficios = async () => {
@@ -101,13 +102,32 @@ const WorkerRegister = () => {
     }
   };
 
-  // NUEVO: Manejar selección de imagen
+  const cargarImagenPerfil = async () => {
+    try {
+      setCargandoImagen(true);
+      const data = await usuarioService.obtenerImagenPerfil();
+      
+      setTieneImagenPerfil(data.tieneImagen);
+      
+      if (data.tieneImagen && data.imagen && data.imagenTipo) {
+        const url = usuarioService.construirImagenUrl(data.imagen, data.imagenTipo);
+        setImagenPerfilUrl(url);
+        setOpcionSeleccionada('mantener');
+      } else {
+        setOpcionSeleccionada('nueva');
+      }
+    } catch (err) {
+      console.error("Error al cargar imagen de perfil:", err);
+    } finally {
+      setCargandoImagen(false);
+    }
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     
     if (!file) return;
     
-    // Validar tipo de archivo
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
       toast({
@@ -118,8 +138,7 @@ const WorkerRegister = () => {
       return;
     }
     
-    // Validar tamaño (máx 10MB)
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 10 * 1024 * 1024;
     if (file.size > maxSize) {
       toast({
         variant: "destructive",
@@ -130,8 +149,8 @@ const WorkerRegister = () => {
     }
     
     setImagenFile(file);
+    setOpcionSeleccionada('nueva');
     
-    // Crear preview
     const reader = new FileReader();
     reader.onloadend = () => {
       setImagenPreview(reader.result as string);
@@ -139,8 +158,7 @@ const WorkerRegister = () => {
     reader.readAsDataURL(file);
   };
 
-  // NUEVO: Eliminar imagen seleccionada
-  const eliminarImagen = () => {
+  const eliminarImagenNueva = () => {
     setImagenFile(null);
     setImagenPreview(null);
     if (fileInputRef.current) {
@@ -148,7 +166,6 @@ const WorkerRegister = () => {
     }
   };
 
-  // Manejar disponibilidad
   const toggleDiaDisponibilidad = (dia: string) => {
     setDisponibilidad(prev =>
       prev.map(d => d.dia === dia ? { ...d, activo: !d.activo } : d)
@@ -168,7 +185,6 @@ const WorkerRegister = () => {
     );
   };
 
-  // Manejar especialidades
   const agregarEspecialidad = () => {
     if (!nuevaEspecialidad.trim()) return;
     
@@ -201,7 +217,6 @@ const WorkerRegister = () => {
     setEspecialidades(especialidades.filter(e => e.id !== id));
   };
 
-  // Manejar portafolios
   const agregarPortafolio = () => {
     setPortafolios([
       ...portafolios,
@@ -219,7 +234,6 @@ const WorkerRegister = () => {
     setPortafolios(portafolios.filter(p => p.id !== id));
   };
 
-  // Validar formulario
   const validarFormulario = (): string | null => {
     if (!oficioSeleccionado) {
       return "Debes seleccionar un oficio";
@@ -251,7 +265,6 @@ const WorkerRegister = () => {
       return "Debes seleccionar al menos un día de disponibilidad";
     }
 
-    // Validar horarios
     const disponibilidadObj: { [key: string]: string } = {};
     diasActivos.forEach(dia => {
       disponibilidadObj[dia.dia] = `${dia.horaInicio}-${dia.horaFin}`;
@@ -270,7 +283,6 @@ const WorkerRegister = () => {
       return "La descripción no puede exceder 400 caracteres";
     }
 
-    // Validar portafolios
     for (const portafolio of portafolios) {
       if (!portafolio.titulo.trim() || !portafolio.descripcion.trim()) {
         return "Todos los portafolios deben tener título y descripción";
@@ -299,7 +311,6 @@ const WorkerRegister = () => {
     try {
       setEnviando(true);
 
-      // Construir objeto de disponibilidad
       const disponibilidadObj: { [key: string]: string } = {};
       disponibilidad
         .filter(d => d.activo)
@@ -307,7 +318,6 @@ const WorkerRegister = () => {
           disponibilidadObj[dia.dia] = `${dia.horaInicio}-${dia.horaFin}`;
         });
 
-      // Construir portafolios
       const portafoliosData: PortafolioRequest[] = portafolios
         .filter(p => p.titulo.trim() && p.descripcion.trim())
         .map(p => ({
@@ -315,7 +325,6 @@ const WorkerRegister = () => {
           descripcion: p.descripcion.trim()
         }));
 
-      // Construir request
       const servicioData: ServicioRequest = {
         oficioId: parseInt(oficioSeleccionado),
         descripcion: descripcion.trim() || undefined,
@@ -324,17 +333,22 @@ const WorkerRegister = () => {
         experiencia: parseInt(experiencia),
         especialidades: especialidades.map(e => e.nombre),
         ubicacion: ubicacion.trim(),
-        portafolios: portafoliosData.length > 0 ? portafoliosData : undefined
+        portafolios: portafoliosData.length > 0 ? portafoliosData : undefined,
+        imagenOpcion: opcionSeleccionada
       };
 
       console.log("Enviando servicio:", servicioData);
-      console.log("Con imagen:", imagenFile?.name);
+      
+      let imagenAEnviar: File | undefined;
+      if (opcionSeleccionada === 'nueva' && imagenFile) {
+        imagenAEnviar = imagenFile;
+      }
 
-      // 1️⃣ Crear el servicio
-      const respuesta = await servicioService.crear(servicioData, imagenFile || undefined);
+      console.log("Con imagen:", imagenAEnviar?.name);
+
+      const respuesta = await servicioService.crear(servicioData, imagenAEnviar);
       console.log("Servicio creado:", respuesta);
 
-      // 2️⃣ Refrescar token solo si el rol cambió
       if (respuesta.rolActualizado) {
         try {
           console.log("🔄 Rol actualizado, refrescando token...");
@@ -349,13 +363,11 @@ const WorkerRegister = () => {
         }
       }
 
-      // 3️⃣ Notificación de éxito
       toast({
         title: "¡Éxito!",
         description: "Tu servicio ha sido registrado correctamente"
       });
 
-      // 4️⃣ Redirigir al dashboard de servicios del usuario
       navigate("/dashboard");
 
     } catch (err: any) {
@@ -378,12 +390,24 @@ const WorkerRegister = () => {
     }
   };
 
+  if (cargandoImagen) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Header />
+        <main className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">Cargando...</p>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
       <main className="container mx-auto px-4 py-8">
-        {/* Breadcrumb */}
         <div className="mb-6">
           <Link to="/auth" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
             <ArrowLeft className="w-4 h-4 mr-1" />
@@ -405,13 +429,146 @@ const WorkerRegister = () => {
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-6">
                 
-                {/* Error general */}
                 {error && (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
                     <AlertDescription>{error}</AlertDescription>
                   </Alert>
                 )}
+
+                {/* Imagen de Perfil */}
+                <Card className="bg-background">
+                  <CardHeader>
+                    <CardTitle className="text-base">Imagen de Perfil</CardTitle>
+                    <CardDescription>
+                      Esta imagen se mostrará en todos tus servicios
+                    </CardDescription>
+                  </CardHeader>
+                  
+                  <CardContent className="space-y-4">
+                    {tieneImagenPerfil && (
+                      <Alert>
+                        <Info className="h-4 w-4" />
+                        <AlertDescription>
+                          Ya tienes una imagen de perfil cargada. Puedes mantenerla, cambiarla o no usar ninguna.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+
+                    <RadioGroup
+                      value={opcionSeleccionada}
+                      onValueChange={(value) => setOpcionSeleccionada(value as OpcionImagen)}
+                      className="space-y-3"
+                    >
+                      {tieneImagenPerfil && (
+                        <div className="flex items-start space-x-3 p-4 border rounded-lg bg-serviceCard">
+                          <RadioGroupItem value="mantener" id="mantener" className="mt-1" />
+                          <div className="flex-1">
+                            <Label htmlFor="mantener" className="cursor-pointer font-medium">
+                              Mantener imagen actual
+                            </Label>
+                            {imagenPerfilUrl && (
+                              <img
+                                src={imagenPerfilUrl}
+                                alt="Imagen de perfil actual"
+                                className="mt-2 w-32 h-32 rounded-lg object-cover border"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="flex items-start space-x-3 p-4 border rounded-lg bg-serviceCard">
+                        <RadioGroupItem value="nueva" id="nueva" className="mt-1" />
+                        <div className="flex-1 space-y-3">
+                          <Label htmlFor="nueva" className="cursor-pointer font-medium">
+                            {tieneImagenPerfil ? "Usar una nueva imagen" : "Agregar imagen"}
+                          </Label>
+                          
+                          {opcionSeleccionada === 'nueva' && (
+                            <>
+                              {imagenPreview ? (
+                                <div className="relative w-32 h-32 rounded-lg overflow-hidden border">
+                                  <img
+                                    src={imagenPreview}
+                                    alt="Nueva imagen"
+                                    className="w-full h-full object-cover"
+                                  />
+                                  <Button
+                                    type="button"
+                                    variant="destructive"
+                                    size="icon"
+                                    className="absolute top-1 right-1"
+                                    onClick={eliminarImagenNueva}
+                                  >
+                                    <X className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <div
+                                  className="border-2 border-dashed border-border rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer"
+                                  onClick={() => fileInputRef.current?.click()}
+                                >
+                                  <Upload className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+                                  <p className="text-sm text-muted-foreground mb-1">
+                                    Haz click para subir una imagen
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    JPG, PNG, GIF o WEBP (máx. 10MB)
+                                  </p>
+                                </div>
+                              )}
+                              
+                              <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                                onChange={handleImageChange}
+                                className="hidden"
+                              />
+                              
+                              {!imagenPreview && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => fileInputRef.current?.click()}
+                                  className="w-full"
+                                >
+                                  <ImageIcon className="w-4 h-4 mr-2" />
+                                  Seleccionar Imagen
+                                </Button>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-start space-x-3 p-4 border rounded-lg bg-serviceCard">
+                        <RadioGroupItem value="ninguna" id="ninguna" className="mt-1" />
+                        <div className="flex-1">
+                          <Label htmlFor="ninguna" className="cursor-pointer font-medium">
+                            No usar imagen de perfil
+                          </Label>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Tus servicios se mostrarán sin imagen
+                          </p>
+                        </div>
+                      </div>
+                    </RadioGroup>
+
+                    {(opcionSeleccionada === 'nueva' || opcionSeleccionada === 'ninguna') && tieneImagenPerfil && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          {opcionSeleccionada === 'nueva'
+                            ? "Al cambiar tu imagen de perfil, se actualizará en TODOS tus servicios existentes."
+                            : "Al eliminar tu imagen de perfil, se quitará de TODOS tus servicios existentes."}
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                  </CardContent>
+                </Card>
 
                 {/* Selección de Oficio */}
                 <div className="space-y-2">
@@ -586,65 +743,6 @@ const WorkerRegister = () => {
                       );
                     })}
                   </div>
-                </div>
-
-                {/* NUEVO: Imagen de Perfil con Upload de Archivo */}
-                <div className="space-y-4">
-                  <Label>Imagen de Perfil</Label>
-                  
-                  {!imagenPreview ? (
-                    <div className="border-2 border-dashed border-muted-foreground/30 rounded-lg p-6 text-center">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                        onChange={handleImageChange}
-                        className="hidden"
-                        id="imagen-upload"
-                      />
-                      <label
-                        htmlFor="imagen-upload"
-                        className="cursor-pointer flex flex-col items-center"
-                      >
-                        <Upload className="w-8 h-8 text-muted-foreground mb-2" />
-                        <p className="text-sm text-muted-foreground mb-2">
-                          Sube una foto profesional tuya
-                        </p>
-                        <Button type="button" variant="outline" size="sm">
-                        Seleccionar Archivo
-                        </Button>
-                      </label>
-                      <p className="text-xs text-muted-foreground mt-3">
-                        Formatos: JPG, PNG, GIF, WEBP • Máximo 10MB
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="relative border-2 border-muted rounded-lg p-4">
-                      <div className="flex items-center gap-4">
-                        <img
-                          src={imagenPreview}
-                          alt="Preview"
-                          className="w-32 h-32 object-cover rounded-lg"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-medium">{imagenFile?.name}</p>
-                          <p className="text-xs text-muted-foreground">
-                            {(imagenFile!.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={eliminarImagen}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <X className="w-4 h-4 mr-1" />
-                          Eliminar
-                        </Button>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Portafolios */}

@@ -1,9 +1,8 @@
-// src/components/Header.tsx
-import { Search, User, Menu, ChevronDown, LogOut, FileText, Settings } from "lucide-react";
+import { Search, User, Menu, ChevronDown, LogOut, FileText, Settings, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Link, useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,22 +23,40 @@ import {
 import { logout, selectIsAuthenticated, selectCurrentUser, selectIsAdmin, selectIsWorker } from "@/store/authSlice";
 import { useAppDispatch, useAppSelector } from "@/store/hooks";
 import { authService } from "@/services/authService";
+import { oficioService } from "@/services/oficioService";
+import { Oficio } from "@/services/oficioService";
 
 const Header = () => {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   
-  // Obtener datos del estado de Redux con hooks tipados
   const isLoggedIn = useAppSelector(selectIsAuthenticated);
   const user = useAppSelector(selectCurrentUser);
   const isAdmin = useAppSelector(selectIsAdmin);
   const isWorker = useAppSelector(selectIsWorker);
 
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [oficios, setOficios] = useState<Oficio[]>([]);
+  const [cargandoOficios, setCargandoOficios] = useState(true);
+
+  useEffect(() => {
+    cargarOficios();
+  }, []);
+
+  const cargarOficios = async () => {
+    try {
+      setCargandoOficios(true);
+      const data = await oficioService.ListarTodos();
+      setOficios(data);
+    } catch (err) {
+      console.error("Error al cargar oficios:", err);
+    } finally {
+      setCargandoOficios(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
-      // ✅ Usa authService.logout() en vez de dispatch(logout())
       await authService.logout();
       navigate('/', { replace: true });
     } catch (error) {
@@ -48,12 +65,18 @@ const Header = () => {
     }
   };
 
-  const handleWorkerRegisterClick = () => {
+  const handleWorkerActionClick = () => {
     if (!isLoggedIn) {
       setShowAuthDialog(true);
+    } else if (isWorker) {
+      navigate('/dashboard');
     } else {
       navigate('/worker/register');
     }
+  };
+
+  const handleOfficioClick = (oficio: Oficio) => {
+    navigate(`/?filtroOficio=${encodeURIComponent(oficio.nombre)}`);
   };
 
   return (
@@ -92,40 +115,36 @@ const Header = () => {
                 <ChevronDown className="w-4 h-4 ml-1" />
               </DropdownMenuTrigger>
               <DropdownMenuContent className="bg-serviceCard border shadow-lg z-50">
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                  Carpintería
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                  Mecánica Automotriz
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                  Plomería
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                  Electricista
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                  Jardinería
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                  Limpieza
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                  Pintura
-                </DropdownMenuItem>
-                <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
-                  Albañilería
-                </DropdownMenuItem>
+                {cargandoOficios ? (
+                  <DropdownMenuItem disabled>Cargando...</DropdownMenuItem>
+                ) : oficios.length > 0 ? (
+                  oficios.map(oficio => (
+                    <DropdownMenuItem 
+                      key={oficio.id}
+                      className="cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                      onClick={() => handleOfficioClick(oficio)}
+                    >
+                      {oficio.nombre}
+                    </DropdownMenuItem>
+                  ))
+                ) : (
+                  <DropdownMenuItem disabled>No hay oficios disponibles</DropdownMenuItem>
+                )}
               </DropdownMenuContent>
             </DropdownMenu>
             
-            {/* Botón ser trabajador / añadir servicio - solo visible si NO es admin */}
             {!isAdmin && (
               <button
-                onClick={handleWorkerRegisterClick}
-                className="hover:text-primary transition-colors text-sm lg:text-base whitespace-nowrap hidden lg:inline bg-transparent border-0 cursor-pointer"
+                onClick={handleWorkerActionClick}
+                className="hover:text-primary transition-colors text-sm lg:text-base whitespace-nowrap hidden lg:inline bg-transparent border-0 cursor-pointer flex items-center gap-1"
               >
-                {isWorker ? 'Añadir Nuevo Servicio' : 'Ser Trabajador'}
+                {isWorker ? (
+                  <>
+                    <span>Ver Mis Servicios</span>
+                  </>
+                ) : (
+                  'Ser Trabajador'
+                )}
               </button>
             )}
             
@@ -133,7 +152,6 @@ const Header = () => {
               Ayuda
             </a>
             
-            {/* Botón de admin - solo visible si el usuario es ADMIN */}
             {isAdmin && (
               <Link to="/admin/occupations">
                 <Button 
@@ -168,6 +186,18 @@ const Header = () => {
                     <FileText className="w-4 h-4 mr-2" />
                     Ver pedidos
                   </DropdownMenuItem>
+                  {isWorker && (
+                    <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem 
+                        className="cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                        onClick={() => navigate('/dashboard')}
+                      >
+                        <Briefcase className="w-4 h-4 mr-2" />
+                        Mis Servicios
+                      </DropdownMenuItem>
+                    </>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem 
                     className="cursor-pointer hover:bg-accent hover:text-accent-foreground text-destructive"
@@ -216,7 +246,6 @@ const Header = () => {
         </div>
       </div>
 
-      {/* Dialog de autenticación requerida */}
       <AlertDialog open={showAuthDialog} onOpenChange={setShowAuthDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
