@@ -3,7 +3,7 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { store } from '../store/store';
 import { updateAccessToken, logout } from '../store/authSlice';
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8081";
+const API_URL = import.meta.env.VITE_API_URL;
 
 interface RefreshResponse {
   accessToken: string;

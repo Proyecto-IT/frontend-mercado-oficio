@@ -20,7 +20,7 @@ const ValidateEmail = () => {
     }
 
     // ⭐ CAMBIA ESTA URL
-    const backendUrl = import.meta.env.VITE_API_URL || "http://localhost:8081";
+    const backendUrl = import.meta.env.VITE_API_URL;
     
     // ⭐ USA LA RUTA CORRECTA: /api/auth/validate
     fetch(`${backendUrl}/api/auth/validate?token=${token}`)
