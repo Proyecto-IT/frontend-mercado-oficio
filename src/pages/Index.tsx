@@ -34,9 +34,21 @@ const Index = () => {
     try {
       setCargando(true);
       const data = await servicioService.obtenerTodos();
-      setServicios(data);
+      // Validación defensiva: asegurar que data es un array
+      if (Array.isArray(data)) {
+        setServicios(data);
+      } else {
+        console.error("La respuesta del servidor no es un array:", data);
+        setServicios([]);
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: "Formato de datos inválido del servidor"
+        });
+      }
     } catch (err) {
       console.error("Error al cargar servicios:", err);
+      setServicios([]); // Asegurar que servicios sea un array vacío en caso de error
       toast({
         variant: "destructive",
         title: "Error",
@@ -47,21 +59,25 @@ const Index = () => {
     }
   };
 
-  // Obtener oficios únicos para filtros
-  const oficiosUnicos = Array.from(new Set(servicios.map(s => s.nombreOficio)));
+  // Obtener oficios únicos para filtros - con validación defensiva
+  const oficiosUnicos = Array.isArray(servicios) 
+    ? Array.from(new Set(servicios.map(s => s.nombreOficio)))
+    : [];
 
-  // Filtrar servicios
-  const serviciosFiltrados = servicios.filter(servicio => {
-    const matchBusqueda = busqueda === "" || 
-      servicio.nombreOficio.toLowerCase().includes(busqueda.toLowerCase()) ||
-      servicio.ubicacion.toLowerCase().includes(busqueda.toLowerCase()) ||
-      (servicio.nombreTrabajador && servicio.nombreTrabajador.toLowerCase().includes(busqueda.toLowerCase())) ||
-      (servicio.descripcion && servicio.descripcion.toLowerCase().includes(busqueda.toLowerCase()));
-    
-    const matchOficio = !filtroOficio || servicio.nombreOficio === filtroOficio;
-    
-    return matchBusqueda && matchOficio;
-  });
+  // Filtrar servicios - con validación defensiva
+  const serviciosFiltrados = Array.isArray(servicios) 
+    ? servicios.filter(servicio => {
+        const matchBusqueda = busqueda === "" || 
+          servicio.nombreOficio.toLowerCase().includes(busqueda.toLowerCase()) ||
+          servicio.ubicacion.toLowerCase().includes(busqueda.toLowerCase()) ||
+          (servicio.nombreTrabajador && servicio.nombreTrabajador.toLowerCase().includes(busqueda.toLowerCase())) ||
+          (servicio.descripcion && servicio.descripcion.toLowerCase().includes(busqueda.toLowerCase()));
+        
+        const matchOficio = !filtroOficio || servicio.nombreOficio === filtroOficio;
+        
+        return matchBusqueda && matchOficio;
+      })
+    : [];
 
   const obtenerDisponibilidad = (disponibilidad: { [dia: string]: string }) => {
     const diasActivos = Object.keys(disponibilidad);

@@ -262,7 +262,8 @@ const WorkerProfile = () => {
                     </div>
 
                     <ServiceBooking 
-                      workerId={servicio.id.toString()}
+                      servicioId={servicio.id.toString()}
+                      workerId={servicio.id.toString()} // <-- agregado
                       workerName={`${servicio.nombreTrabajador} ${servicio.apellidoTrabajador}`}
                       serviceName={servicio.nombreOficio}
                       hourlyRate={servicio.tarifaHora}

@@ -15,24 +15,49 @@ interface AuthState {
   isAuthenticated: boolean;
 }
 
+// ✅ FUNCIÓN DE VALIDACIÓN JWT
+const isValidJWT = (token: string): boolean => {
+  if (!token || typeof token !== 'string') {
+    return false;
+  }
+  const parts = token.split('.');
+  return parts.length === 3 && parts.every(part => part.length > 0);
+};
+
 // Cargar estado inicial desde sessionStorage
 const loadInitialState = (): AuthState => {
   try {
     const savedAuth = sessionStorage.getItem('auth');
     if (savedAuth) {
       const parsed = JSON.parse(savedAuth);
+      
+      // ✅ VALIDAR TOKEN AL CARGAR
+      if (parsed.accessToken && !isValidJWT(parsed.accessToken)) {
+        console.error('❌ Token corrupto en sessionStorage, limpiando...');
+        sessionStorage.removeItem('auth');
+        return {
+          accessToken: null,
+          usuarioId: null,
+          user: null,
+          isAuthenticated: false,
+        };
+      }
+      
       console.log('📦 Estado cargado desde sessionStorage:', {
         hasToken: !!parsed.accessToken,
+        tokenValid: parsed.accessToken ? isValidJWT(parsed.accessToken) : false,
         usuarioId: parsed.usuarioId,
         user: parsed.user?.gmail
       });
+      
       return {
         ...parsed,
-        isAuthenticated: !!parsed.accessToken,
+        isAuthenticated: !!parsed.accessToken && isValidJWT(parsed.accessToken),
       };
     }
   } catch (error) {
     console.error('❌ Error loading auth state:', error);
+    sessionStorage.removeItem('auth');
   }
   
   console.log('🆕 Iniciando con estado vacío');
@@ -44,12 +69,13 @@ const loadInitialState = (): AuthState => {
   };
 };
 
-// 🔥 Helper para persistir estado
+// Helper para persistir estado
 const persistState = (state: AuthState) => {
   try {
     sessionStorage.setItem('auth', JSON.stringify(state));
     console.log('💾 Estado persistido:', {
       hasToken: !!state.accessToken,
+      tokenValid: state.accessToken ? isValidJWT(state.accessToken) : false,
       tokenPreview: state.accessToken?.substring(0, 20) + '...',
       usuarioId: state.usuarioId,
       user: state.user?.gmail
@@ -68,12 +94,23 @@ const authSlice = createSlice({
     setCredentials: (state, action: PayloadAction<{
       accessToken: string;
       usuarioId: number;
-      user?: User; // 🔥 OPCIONAL
+      user?: User;
     }>) => {
       const { accessToken, usuarioId, user } = action.payload;
       
-      console.log('🔐 setCredentials:', {
+      // ✅ VALIDACIÓN CRÍTICA: Verificar token antes de guardarlo
+      if (!isValidJWT(accessToken)) {
+        console.error('❌ Intentando guardar token inválido en setCredentials:', {
+          tokenParts: accessToken.split('.').length,
+          tokenPreview: accessToken.substring(0, 50) + '...',
+          tokenLength: accessToken.length
+        });
+        return; // No guardar token inválido
+      }
+      
+      console.log('🔐 setCredentials con token válido:', {
         tokenPreview: accessToken.substring(0, 20) + '...',
+        tokenParts: accessToken.split('.').length,
         usuarioId,
         userEmail: user?.gmail || 'sin user'
       });
@@ -81,44 +118,46 @@ const authSlice = createSlice({
       state.accessToken = accessToken;
       state.usuarioId = usuarioId;
       
-      // 🔥 Solo actualizar user si viene en el payload
       if (user) {
         state.user = user;
       }
       
       state.isAuthenticated = true;
-      
-      // Persistir en sessionStorage
       persistState(state);
     },
         
     setUser: (state, action: PayloadAction<User>) => {
       console.log('👤 setUser:', action.payload.gmail);
-      
       state.user = action.payload;
-      
-      // Persistir cambios
       persistState(state);
     },
     
     updateAccessToken: (state, action: PayloadAction<string>) => {
       const newToken = action.payload;
       
-      console.log('🔄 updateAccessToken:', {
+      // ✅ VALIDACIÓN CRÍTICA: Verificar token antes de guardarlo
+      if (!isValidJWT(newToken)) {
+        console.error('❌ Intentando actualizar con token inválido:', {
+          tokenParts: newToken.split('.').length,
+          tokenPreview: newToken.substring(0, 50) + '...',
+          tokenLength: newToken.length
+        });
+        return; // No actualizar con token inválido
+      }
+      
+      console.log('🔄 updateAccessToken con token válido:', {
         oldTokenPreview: state.accessToken?.substring(0, 20) + '...',
         newTokenPreview: newToken.substring(0, 20) + '...',
+        newTokenParts: newToken.split('.').length,
         changed: state.accessToken !== newToken
       });
       
-      // 🔥 CRÍTICO: Actualizar el token
       state.accessToken = newToken;
       
-      // 🔥 Mantener isAuthenticated en true si hay token
       if (newToken) {
         state.isAuthenticated = true;
       }
       
-      // Persistir cambios INMEDIATAMENTE
       persistState(state);
     },
     

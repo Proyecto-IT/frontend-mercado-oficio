@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
-import { Edit, Trash2, Plus, MapPin, Clock, Briefcase, Star } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Edit, Trash2, Plus, MapPin, Clock, Briefcase, Star, FileText, ListChecks } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -16,15 +16,22 @@ import {
 } from "@/components/ui/alert-dialog";
 import Header from "@/components/Header";
 import { servicioService } from "@/services/servicioService";
+import { presupuestoServicio } from "@/services/presupuestoServicio";
 import { ServicioResponse } from "@/types/servicio.types";
 import { formatearTarifa, diasSemana } from "@/utils/validation";
 import { useToast } from "@/hooks/use-toast";
+import { useSelector } from 'react-redux';
+import type { RootState } from '@/store/store';
+import { selectUsuarioId } from '@/store/authSlice';
 
 const MisServicios = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const usuarioId = useSelector((state: RootState) => selectUsuarioId(state));
   const [servicios, setServicios] = useState<ServicioResponse[]>([]);
   const [cargando, setCargando] = useState(true);
   const [servicioAEliminar, setServicioAEliminar] = useState<number | null>(null);
+  const [presupuestosPorServicio, setPresupuestosPorServicio] = useState<{ [key: number]: number }>({});
 
   useEffect(() => {
     cargarServicios();
@@ -35,6 +42,20 @@ const MisServicios = () => {
       setCargando(true);
       const data = await servicioService.obtenerMisServicios();
       setServicios(data);
+      
+      // Cargar presupuestos para cada servicio
+      if (usuarioId) {
+        const presupuestos = await presupuestoServicio.obtenerPorPrestador(usuarioId);
+        const conteo: { [key: number]: number } = {};
+        
+        presupuestos.forEach(p => {
+          if (p.servicioId) {
+            conteo[p.servicioId] = (conteo[p.servicioId] || 0) + 1;
+          }
+        });
+        
+        setPresupuestosPorServicio(conteo);
+      }
     } catch (err) {
       console.error("Error al cargar servicios:", err);
       toast({
@@ -227,20 +248,43 @@ const MisServicios = () => {
                   )}
                   
                   {/* Acciones */}
-                  <div className="flex gap-2 pt-2">
-                    <Link to={`/editar-servicio/${servicio.id}`} className="flex-1">
-                      <Button variant="outline" className="w-full">
-                        <Edit className="w-4 h-4 mr-2" />
-                        Editar
+                  <div className="space-y-2 pt-2">
+                    <div className="flex gap-2">
+                      <Link to={`/editar-servicio/${servicio.id}`} className="flex-1">
+                        <Button variant="outline" className="w-full">
+                          <Edit className="w-4 h-4 mr-2" />
+                          Editar
+                        </Button>
+                      </Link>
+                      
+                      <Button
+                        variant="outline"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => setServicioAEliminar(servicio.id)}
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </Button>
-                    </Link>
-                    
+                    </div>
+
+                    {/* Botones adicionales */}
+                    {presupuestosPorServicio[servicio.id] > 0 && (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => navigate(`/presupuestos-servicio/${servicio.id}`)}
+                      >
+                        <FileText className="w-4 h-4 mr-2" />
+                        Ver Presupuestos ({presupuestosPorServicio[servicio.id]})
+                      </Button>
+                    )}
+
                     <Button
                       variant="outline"
-                      className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                      onClick={() => setServicioAEliminar(servicio.id)}
+                      className="w-full"
+                      onClick={() => navigate(`/ver-hitos/${servicio.id}`)}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <ListChecks className="w-4 h-4 mr-2" />
+                      Ver Hitos
                     </Button>
                   </div>
                 </CardContent>

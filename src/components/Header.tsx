@@ -182,7 +182,10 @@ const Header = () => {
                     <User className="w-4 h-4 mr-2" />
                     Ver perfil
                   </DropdownMenuItem>
-                  <DropdownMenuItem className="cursor-pointer hover:bg-accent hover:text-accent-foreground">
+                  <DropdownMenuItem 
+                    className="cursor-pointer hover:bg-accent hover:text-accent-foreground"
+                    onClick={() => navigate('/mis-solicitudes')}
+                  >
                     <FileText className="w-4 h-4 mr-2" />
                     Ver pedidos
                   </DropdownMenuItem>
