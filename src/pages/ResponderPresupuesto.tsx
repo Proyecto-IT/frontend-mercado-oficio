@@ -12,7 +12,7 @@ import { Loader2, AlertCircle, CheckCircle, Image as ImageIcon, Play } from "luc
 import { presupuestoServicio } from "@/services/presupuestoServicio";
 import { PresupuestoServicioDTO, EstadoPresupuesto, TipoArchivo } from '@/types/presupuesto.types';
 
-const ResponderPresupuestoPage = () => {
+const ResponderPresupuesto = () => {
   const navigate = useNavigate();
   const { presupuestoId } = useParams<{ presupuestoId: string }>();
   const usuarioId = useSelector((state: RootState) => selectUsuarioId(state));
@@ -106,7 +106,7 @@ const ResponderPresupuestoPage = () => {
 
       setExito(true);
       setTimeout(() => {
-        navigate("/presupuestos");
+        navigate("/dashboard");
       }, 2000);
     } catch (err: any) {
       setError(err.response?.data?.message || "Error al responder presupuesto");
@@ -330,4 +330,4 @@ const ResponderPresupuestoPage = () => {
   );
 };
 
-export default ResponderPresupuestoPage;
+export default ResponderPresupuesto;

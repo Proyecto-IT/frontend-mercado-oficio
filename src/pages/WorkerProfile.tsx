@@ -9,19 +9,33 @@ import Header from "@/components/Header";
 import ServiceBooking from "@/components/ServiceBooking";
 import Reviews from "@/components/Reviews";
 import { servicioService } from "@/services/servicioService";
+import { presupuestoServicio } from "@/services/presupuestoServicio";
 import { ServicioResponse } from "@/types/servicio.types";
 import { formatearTarifa } from "@/utils/validation";
 import { useToast } from "@/hooks/use-toast";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
 
 const WorkerProfile = () => {
   const { id } = useParams();
   const { toast } = useToast();
   const [servicio, setServicio] = useState<ServicioResponse | null>(null);
   const [cargando, setCargando] = useState(true);
+  const [presupuestoId, setPresupuestoId] = useState<number | undefined>(undefined);
+  
+  const currentUser = useSelector((state: RootState) => state.auth.user);
+  const usuarioId = useSelector((state: RootState) => state.auth.usuarioId); // ✅ USAR ESTE
+  const isCliente = currentUser?.rol === 'CLIENTE';
 
   useEffect(() => {
     cargarServicio();
   }, [id]);
+
+  useEffect(() => {
+    if (servicio && isCliente && usuarioId) { // ✅ CAMBIO AQUÍ
+      cargarPresupuestoUsuario();
+    }
+  }, [servicio, isCliente, usuarioId]); // ✅ CAMBIO AQUÍ
 
   const cargarServicio = async () => {
     if (!id) return;
@@ -42,6 +56,55 @@ const WorkerProfile = () => {
     }
   };
 
+  const cargarPresupuestoUsuario = async () => {
+    console.log('🚀 Iniciando cargarPresupuestoUsuario:', {
+      usuarioId: usuarioId, // ✅ CAMBIO AQUÍ
+      servicioId: servicio?.id
+    });
+    
+    if (!usuarioId || !servicio?.id) { // ✅ CAMBIO AQUÍ
+      console.log('⚠️ Saliendo: falta usuarioId o servicio.id');
+      return;
+    }
+    
+    try {
+      console.log('🔍 Buscando presupuesto para servicio:', servicio.id);
+      console.log('📞 Llamando a presupuestoServicio.obtenerPorCliente con ID:', usuarioId);
+      
+      // ✅ USAR usuarioId en vez de currentUser.id
+      const presupuestos = await presupuestoServicio.obtenerPorCliente(usuarioId);
+      
+      console.log('📦 Presupuestos obtenidos:', presupuestos);
+      console.log('📊 Cantidad de presupuestos:', presupuestos.length);
+      
+      const presupuestoDelServicio = presupuestos.find(
+        (p) => p.servicioId === servicio.id && p.estado === 'APROBADO'
+      );
+      
+      if (presupuestoDelServicio) {
+        console.log('✅ Presupuesto encontrado:', {
+          idPresupuesto: presupuestoDelServicio.id,
+          servicioId: presupuestoDelServicio.servicioId,
+          estado: presupuestoDelServicio.estado
+        });
+        setPresupuestoId(presupuestoDelServicio.id);
+      } else {
+        console.log('❌ No se encontró presupuesto aprobado para este servicio');
+        console.log('🔎 Buscando con servicioId:', servicio.id);
+        console.log('📋 Presupuestos disponibles:', presupuestos.map(p => ({
+          id: p.id,
+          servicioId: p.servicioId,
+          estado: p.estado,
+          coincideServicio: p.servicioId === servicio.id,
+          esAprobado: p.estado === 'APROBADO'
+        })));
+      }
+    } catch (err) {
+      console.error("❌ Error al cargar presupuesto:", err);
+      console.error("Detalles del error:", err);
+    }
+  };
+
   const obtenerDisponibilidad = (disponibilidad: { [dia: string]: string }) => {
     const diasActivos = Object.keys(disponibilidad);
     if (diasActivos.length === 0) return "No disponible";
@@ -49,7 +112,6 @@ const WorkerProfile = () => {
     return `Disponible ${diasActivos.length} días`;
   };
 
-  // 🔥 NUEVO: Función para obtener la URL de la imagen
   const obtenerImagenUrl = (servicio: ServicioResponse): string | null => {
     if (!servicio.imagenUsuario || !servicio.imagenUsuarioTipo) {
       return null;
@@ -91,7 +153,7 @@ const WorkerProfile = () => {
     );
   }
 
-  const imagenUrl = obtenerImagenUrl(servicio); // 🔥 NUEVO
+  const imagenUrl = obtenerImagenUrl(servicio);
 
   return (
     <div className="min-h-screen bg-background">
@@ -223,10 +285,9 @@ const WorkerProfile = () => {
 
             {/* Reviews Section */}
             <Reviews 
-              workerId={servicio.id.toString()}
+              servicioId={servicio.id}
+              presupuestoId={presupuestoId}
               workerName={`${servicio.nombreTrabajador} ${servicio.apellidoTrabajador}`}
-              averageRating={servicio.trabajosCompletados > 0 ? 4.8 : 0}
-              totalReviews={servicio.trabajosCompletados}
             />
           </div>
 
@@ -263,7 +324,7 @@ const WorkerProfile = () => {
 
                     <ServiceBooking 
                       servicioId={servicio.id.toString()}
-                      workerId={servicio.id.toString()} // <-- agregado
+                      workerId={servicio.id.toString()}
                       workerName={`${servicio.nombreTrabajador} ${servicio.apellidoTrabajador}`}
                       serviceName={servicio.nombreOficio}
                       hourlyRate={servicio.tarifaHora}

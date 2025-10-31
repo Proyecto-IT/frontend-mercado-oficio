@@ -295,7 +295,7 @@ const PresupuestosPorServicio = () => {
                     {presupuesto.estado === EstadoPresupuesto.PENDIENTE && (
                       <Button
                         className="w-full bg-workerButton hover:bg-workerButton/90 text-workerButton-text"
-                        onClick={() => handleNavegar(`/responder-presupuesto/${presupuesto.id}`)}
+                        onClick={() => handleNavegar(`/presupuesto/${presupuesto.id}/responder`)}
                       >
                         <Edit className="w-4 h-4 mr-2" />
                         Responder Presupuesto

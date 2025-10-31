@@ -278,14 +278,7 @@ const MisServicios = () => {
                       </Button>
                     )}
 
-                    <Button
-                      variant="outline"
-                      className="w-full"
-                      onClick={() => navigate(`/ver-hitos/${servicio.id}`)}
-                    >
-                      <ListChecks className="w-4 h-4 mr-2" />
-                      Ver Hitos
-                    </Button>
+                    
                   </div>
                 </CardContent>
               </Card>

@@ -1,355 +1,301 @@
-import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { FileText, Clock, CheckCircle, XCircle, AlertCircle, ListChecks, Edit, Eye, Loader2, ArrowLeft } from "lucide-react";
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Upload, X, FileImage, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { useToast } from "@/hooks/use-toast";
 import Header from "@/components/Header";
 import { presupuestoServicio } from "@/services/presupuestoServicio";
-import { hitoServicio } from "@/services/hitoServicio";
-import { PresupuestoServicioDTO, EstadoPresupuesto } from "@/types/presupuesto.types";
-import { useToast } from "@/hooks/use-toast";
+import { PresupuestoServicioCreateDTO } from "@/types/presupuesto.types";
+import { useSelector } from "react-redux";
+import { RootState } from "@/store/store";
 
-const PresupuestosPorServicio = () => {
+const MAX_IMAGENES = 5;
+const MAX_SIZE_MB = 5;
+const TIPOS_PERMITIDOS = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+
+interface ImagenPreview {
+  file: File;
+  preview: string;
+}
+
+const SolicitarPresupuesto = () => {
   const { servicioId } = useParams<{ servicioId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [presupuestos, setPresupuestos] = useState<PresupuestoServicioDTO[]>([]);
-  const [presupuestosConHitos, setPresupuestosConHitos] = useState<Set<number>>(new Set());
-  const [cargando, setCargando] = useState(true);
-  const [verificandoHitos, setVerificandoHitos] = useState(false);
+  const userId = useSelector((state: RootState) => state.auth.usuarioId);
+  
+  const [descripcionProblema, setDescripcionProblema] = useState("");
+  const [imagenes, setImagenes] = useState<ImagenPreview[]>([]);
+  const [enviando, setEnviando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (servicioId) {
-      cargarPresupuestos();
+  const validarImagen = (file: File): string | null => {
+    if (!TIPOS_PERMITIDOS.includes(file.type)) {
+      return "Solo se permiten imágenes JPG, PNG o WEBP";
     }
-  }, [servicioId]);
+    if (file.size > MAX_SIZE_MB * 1024 * 1024) {
+      return `La imagen debe pesar menos de ${MAX_SIZE_MB}MB`;
+    }
+    return null;
+  };
 
-  const cargarPresupuestos = async () => {
-    if (!servicioId) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "ID de servicio no válido"
-      });
-      navigate('/mis-servicios');
+  const handleSeleccionarImagenes = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    setError(null);
+
+    if (imagenes.length + files.length > MAX_IMAGENES) {
+      setError(`Solo puedes subir un máximo de ${MAX_IMAGENES} imágenes`);
       return;
     }
+
+    const nuevasImagenes: ImagenPreview[] = [];
     
-    try {
-      setCargando(true);
-      console.log("🔍 Cargando presupuestos para servicio:", servicioId);
-      
-      // Llamar al nuevo método que filtra por servicio en el backend
-      const data = await presupuestoServicio.obtenerPorServicio(Number(servicioId));
-      console.log("✅ Presupuestos obtenidos:", data);
-      
-      setPresupuestos(data);
-      
-      // Verificar cuáles tienen hitos
-      if (data.length > 0) {
-        await verificarHitos(data);
+    for (const file of files) {
+      const errorValidacion = validarImagen(file);
+      if (errorValidacion) {
+        setError(errorValidacion);
+        return;
       }
-    } catch (err) {
-      console.error("❌ Error al cargar presupuestos:", err);
+
+      const preview = URL.createObjectURL(file);
+      nuevasImagenes.push({ file, preview });
+    }
+
+    setImagenes(prev => [...prev, ...nuevasImagenes]);
+  };
+
+  const handleEliminarImagen = (index: number) => {
+    setImagenes(prev => {
+      const nuevas = [...prev];
+      URL.revokeObjectURL(nuevas[index].preview);
+      nuevas.splice(index, 1);
+      return nuevas;
+    });
+    setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!descripcionProblema.trim()) {
+      setError("Por favor describe el problema");
+      return;
+    }
+
+    if (!userId || !servicioId) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "No se pudieron cargar los presupuestos"
+        description: "Datos de sesión inválidos"
+      });
+      return;
+    }
+
+    setEnviando(true);
+    setError(null);
+
+    try {
+      // 1. Crear presupuesto
+      const dto: PresupuestoServicioCreateDTO = {
+        servicioId: Number(servicioId),
+        idCliente: userId,
+        descripcionProblema: descripcionProblema.trim()
+      };
+
+      console.log("📝 Creando presupuesto...");
+      const presupuestoCreado = await presupuestoServicio.crear(dto);
+      console.log("✅ Presupuesto creado:", presupuestoCreado.id);
+
+      // 2. Subir imágenes si hay alguna
+      if (imagenes.length > 0) {
+        console.log(`📤 Subiendo ${imagenes.length} imágenes...`);
+        
+        for (let i = 0; i < imagenes.length; i++) {
+          try {
+            await presupuestoServicio.cargarArchivo(
+              presupuestoCreado.id,
+              imagenes[i].file
+            );
+            console.log(`✅ Imagen ${i + 1}/${imagenes.length} subida`);
+          } catch (error) {
+            console.error(`❌ Error subiendo imagen ${i + 1}:`, error);
+            throw new Error(`Error al subir la imagen ${i + 1}`);
+          }
+        }
+        
+        console.log("✅ Todas las imágenes subidas exitosamente");
+      }
+
+      // Limpiar URLs de preview
+      imagenes.forEach(img => URL.revokeObjectURL(img.preview));
+
+      toast({
+        title: "¡Presupuesto solicitado!",
+        description: "El prestador recibirá tu solicitud y te responderá pronto"
+      });
+
+      navigate(`/servicio/${servicioId}`);
+      
+    } catch (error) {
+      console.error("❌ Error al solicitar presupuesto:", error);
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "No se pudo enviar la solicitud. Intenta nuevamente"
       });
     } finally {
-      setCargando(false);
+      setEnviando(false);
     }
   };
-
-  const verificarHitos = async (presupuestos: PresupuestoServicioDTO[]) => {
-    setVerificandoHitos(true);
-    const conHitos = new Set<number>();
-    
-    for (const presupuesto of presupuestos) {
-      try {
-        const hitos = await hitoServicio.obtenerHitosPresupuesto(presupuesto.id);
-        if (hitos && hitos.length > 0) {
-          conHitos.add(presupuesto.id);
-          console.log(`✅ Presupuesto ${presupuesto.id} tiene ${hitos.length} hitos`);
-        }
-      } catch (err) {
-        console.log(`ℹ️ Presupuesto ${presupuesto.id} no tiene hitos`);
-      }
-    }
-    
-    setPresupuestosConHitos(conHitos);
-    setVerificandoHitos(false);
-  };
-
-  const handleNavegar = (path: string) => {
-    navigate(path);
-  };
-
-  const getEstadoBadge = (estado: EstadoPresupuesto) => {
-    const estadoConfig = {
-      [EstadoPresupuesto.PENDIENTE]: { 
-        variant: "secondary" as const, 
-        label: "Pendiente", 
-        icon: Clock 
-      },
-      [EstadoPresupuesto.APROBADO]: { 
-        variant: "default" as const, 
-        label: "Aprobado", 
-        icon: CheckCircle 
-      },
-      [EstadoPresupuesto.RECHAZADO]: { 
-        variant: "destructive" as const, 
-        label: "Rechazado", 
-        icon: XCircle 
-      },
-    };
-
-    const config = estadoConfig[estado] || estadoConfig[EstadoPresupuesto.PENDIENTE];
-    const Icon = config.icon;
-
-    return (
-      <Badge variant={config.variant} className="flex items-center gap-1">
-        <Icon className="w-3 h-3" />
-        {config.label}
-      </Badge>
-    );
-  };
-
-  const formatearFecha = (fecha: string) => {
-    return new Date(fecha).toLocaleDateString('es-AR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const calcularPresupuestoTotal = (presupuesto: PresupuestoServicioDTO) => {
-    // Validar que los valores existan antes de calcular
-    if (!presupuesto.tarifaHora || !presupuesto.horasEstimadas) {
-      return 0;
-    }
-    
-    const tarifa = typeof presupuesto.tarifaHora === 'string' 
-      ? parseFloat(presupuesto.tarifaHora) 
-      : presupuesto.tarifaHora;
-    
-    const materiales = presupuesto.costoMateriales || 0;
-    
-    return (tarifa * presupuesto.horasEstimadas) + materiales;
-  };
-
-  if (cargando) {
-    return (
-      <div className="min-h-screen bg-background">
-        <Header />
-        <main className="container mx-auto px-4 py-8">
-          <div className="text-center py-12">
-            <Loader2 className="w-8 h-8 animate-spin mx-auto text-muted-foreground" />
-            <p className="text-muted-foreground mt-4">Cargando presupuestos...</p>
-          </div>
-        </main>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
-      <main className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-foreground">Presupuestos del Servicio</h1>
-            <p className="text-muted-foreground mt-1">
-              Gestiona los presupuestos asociados a este servicio
-            </p>
-          </div>
+      <main className="container mx-auto px-4 py-8 max-w-3xl">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl">Solicitar Presupuesto</CardTitle>
+            <CardDescription>
+              Describe el problema y adjunta hasta 5 imágenes para que el prestador 
+              pueda darte un mejor presupuesto
+            </CardDescription>
+          </CardHeader>
           
-          <Button 
-            variant="outline" 
-            onClick={() => navigate('/mis-servicios')}
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Volver
-          </Button>
-        </div>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Descripción del problema */}
+              <div className="space-y-2">
+                <Label htmlFor="descripcion">
+                  Descripción del problema <span className="text-destructive">*</span>
+                </Label>
+                <Textarea
+                  id="descripcion"
+                  placeholder="Describe detalladamente el problema que necesitas resolver..."
+                  value={descripcionProblema}
+                  onChange={(e) => setDescripcionProblema(e.target.value)}
+                  rows={6}
+                  className="resize-none"
+                  disabled={enviando}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Mínimo 10 caracteres
+                </p>
+              </div>
 
-        {presupuestos.length === 0 ? (
-          <Card className="text-center py-12">
-            <CardContent>
-              <FileText className="w-16 h-16 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-xl font-semibold mb-2">No hay presupuestos</h3>
-              <p className="text-muted-foreground">
-                Este servicio aún no tiene presupuestos solicitados
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {presupuestos.map((presupuesto) => (
-              <Card key={presupuesto.id} className="bg-serviceCard hover:shadow-lg transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <CardTitle className="text-xl mb-2">
-                        Presupuesto #{presupuesto.id}
-                      </CardTitle>
-                      <CardDescription className="text-sm space-y-1">
-                        <p><span className="font-medium">Cliente:</span> {presupuesto.nombreCliente} {presupuesto.apellidoCliente}</p>
-                        <p><span className="font-medium">Fecha:</span> {formatearFecha(presupuesto.fechaCreacion)}</p>
-                      </CardDescription>
-                    </div>
-                    {getEstadoBadge(presupuesto.estado)}
-                  </div>
-                </CardHeader>
+              {/* Sección de imágenes */}
+              <div className="space-y-3">
+                <Label>
+                  Imágenes (opcional - máximo {MAX_IMAGENES})
+                </Label>
                 
-                <CardContent className="space-y-4">
-                  {/* Descripción del problema */}
-                  <div>
-                    <h4 className="text-sm font-semibold text-muted-foreground mb-1">
-                      Descripción del Problema:
-                    </h4>
-                    <p className="text-sm line-clamp-3">{presupuesto.descripcionProblema}</p>
-                  </div>
-
-                  {/* Solución propuesta (si existe) */}
-                  {presupuesto.descripcionSolucion && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-muted-foreground mb-1">
-                        Solución Propuesta:
-                      </h4>
-                      <p className="text-sm line-clamp-2">{presupuesto.descripcionSolucion}</p>
-                    </div>
-                  )}
-
-                  {/* Detalles del presupuesto */}
-                  {presupuesto.respondido && presupuesto.horasEstimadas && presupuesto.tarifaHora && (
-                    <div className="space-y-2 p-3 bg-primary/10 rounded-lg">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Horas estimadas:</span>
-                        <span className="font-medium">{presupuesto.horasEstimadas}h</span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Tarifa/hora:</span>
-                        <span className="font-medium">
-                          ${typeof presupuesto.tarifaHora === 'string' 
-                            ? parseFloat(presupuesto.tarifaHora).toFixed(2) 
-                            : presupuesto.tarifaHora.toFixed(2)}
-                        </span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-muted-foreground">Materiales:</span>
-                        <span className="font-medium">${(presupuesto.costoMateriales || 0).toFixed(2)}</span>
-                      </div>
-                      
-                      <div className="flex items-center justify-between text-sm pt-2 border-t">
-                        <span className="font-semibold">Total:</span>
-                        <span className="font-bold text-lg text-primary">
-                          ${calcularPresupuestoTotal(presupuesto).toFixed(2)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Horarios seleccionados */}
-                  {presupuesto.horariosSeleccionados && presupuesto.horariosSeleccionados.length > 0 && (
-                    <div>
-                      <h4 className="text-sm font-semibold text-muted-foreground mb-2">
-                        Horarios Seleccionados:
-                      </h4>
-                      <div className="space-y-1">
-                        {presupuesto.horariosSeleccionados.slice(0, 3).map((horario, idx) => (
-                          <div key={idx} className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Clock className="w-3 h-3" />
-                            <span>
-                              {new Date(horario.fecha).toLocaleDateString('es-AR')} | {horario.horaInicio} - {horario.horaFin}
-                            </span>
-                          </div>
-                        ))}
-                        {presupuesto.horariosSeleccionados.length > 3 && (
-                          <p className="text-xs text-muted-foreground">
-                            +{presupuesto.horariosSeleccionados.length - 3} horarios más
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Archivos adjuntos */}
-                  {presupuesto.archivos && presupuesto.archivos.length > 0 && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <FileText className="w-4 h-4" />
-                      <span>{presupuesto.archivos.length} archivo(s) adjunto(s)</span>
-                    </div>
-                  )}
-
-                  {/* Botones de acción */}
-                  <div className="space-y-2 pt-2">
-                    {/* Botón para responder presupuesto */}
-                    {presupuesto.estado === EstadoPresupuesto.PENDIENTE && (
-                      <Button
-                        className="w-full bg-workerButton hover:bg-workerButton/90 text-workerButton-text"
-                        onClick={() => handleNavegar(`/responder-presupuesto/${presupuesto.id}`)}
-                      >
-                        <Edit className="w-4 h-4 mr-2" />
-                        Responder Presupuesto
-                      </Button>
-                    )}
-
-                    {/* Botón para ver detalles */}
-                    {presupuesto.respondido && (
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => handleNavegar(`/ver-presupuesto/${presupuesto.id}`)}
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        Ver Detalles
-                      </Button>
-                    )}
-
-                    {/* Botón para ver hitos (solo si tiene hitos) */}
-                    {verificandoHitos ? (
-                      <Button variant="outline" className="w-full" disabled>
-                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        Verificando hitos...
-                      </Button>
-                    ) : (
-                      presupuestosConHitos.has(presupuesto.id) && (
-                        <Button
-                          variant="outline"
-                          className="w-full border-primary text-primary hover:bg-primary/10"
-                          onClick={() => handleNavegar(`/ver-hitos/${presupuesto.id}`)}
+                {/* Grid de imágenes */}
+                {imagenes.length > 0 && (
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    {imagenes.map((imagen, index) => (
+                      <div key={index} className="relative group">
+                        <img
+                          src={imagen.preview}
+                          alt={`Preview ${index + 1}`}
+                          className="w-full h-32 object-cover rounded-lg border"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarImagen(index)}
+                          disabled={enviando}
+                          className="absolute top-1 right-1 bg-destructive text-destructive-foreground rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-50"
                         >
-                          <ListChecks className="w-4 h-4 mr-2" />
-                          Ver Hitos
-                        </Button>
-                      )
-                    )}
+                          <X className="w-4 h-4" />
+                        </button>
+                        <div className="absolute bottom-1 left-1 bg-black/60 text-white text-xs px-2 py-0.5 rounded">
+                          {(imagen.file.size / 1024 / 1024).toFixed(1)}MB
+                        </div>
+                      </div>
+                    ))}
                   </div>
+                )}
 
-                  {/* Indicador de respuesta */}
-                  {presupuesto.respondido && (
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2 border-t">
-                      <CheckCircle className="w-3 h-3 text-green-600" />
-                      <span>
-                        Respondido el {presupuesto.fechaRespuesta 
-                          ? formatearFecha(presupuesto.fechaRespuesta)
-                          : formatearFecha(presupuesto.fechaActualizacion)}
+                {/* Botón para agregar imágenes */}
+                {imagenes.length < MAX_IMAGENES && (
+                  <div>
+                    <input
+                      type="file"
+                      id="file-upload"
+                      className="hidden"
+                      accept="image/jpeg,image/jpg,image/png,image/webp"
+                      multiple
+                      onChange={handleSeleccionarImagenes}
+                      disabled={enviando}
+                    />
+                    <label
+                      htmlFor="file-upload"
+                      className={`flex items-center justify-center gap-2 p-6 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${
+                        enviando 
+                          ? 'border-muted bg-muted/50 cursor-not-allowed' 
+                          : 'border-muted-foreground/25 hover:border-primary hover:bg-primary/5'
+                      }`}
+                    >
+                      <Upload className="w-5 h-5 text-muted-foreground" />
+                      <span className="text-sm text-muted-foreground">
+                        Haz clic para seleccionar imágenes
                       </span>
-                    </div>
+                    </label>
+                  </div>
+                )}
+
+                <div className="flex items-start gap-2 text-xs text-muted-foreground">
+                  <FileImage className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p>Formatos: JPG, PNG, WEBP</p>
+                    <p>Tamaño máximo: {MAX_SIZE_MB}MB por imagen</p>
+                    <p>Imágenes: {imagenes.length}/{MAX_IMAGENES}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Mensaje de error */}
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+                  <AlertCircle className="w-4 h-4 text-destructive flex-shrink-0" />
+                  <p className="text-sm text-destructive">{error}</p>
+                </div>
+              )}
+
+              {/* Botones */}
+              <div className="flex gap-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate(-1)}
+                  disabled={enviando}
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={enviando || !descripcionProblema.trim() || descripcionProblema.trim().length < 10}
+                  className="flex-1"
+                >
+                  {enviando ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    "Enviar Solicitud"
                   )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )}
+                </Button>
+              </div>
+            </form>
+          </CardContent>
+        </Card>
       </main>
     </div>
   );
 };
 
-export default PresupuestosPorServicio;
+export default SolicitarPresupuesto;

@@ -176,7 +176,6 @@ const SolicitudPresupuestoCard = ({ solicitud, onActualizar }) => {
       setMostrarDialogoPago(false);
       onActualizar();
       
-      alert(`✓ Pago procesado correctamente.\n${horariosSeleccionados.length} hitos creados automáticamente.`);
     } catch (err) {
       console.error("Error al procesar pago:", err);
       setError(err.response?.data?.error || "Error al procesar el pago del servicio");
